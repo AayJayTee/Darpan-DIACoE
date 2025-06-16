@@ -5,24 +5,62 @@
     <button id="downloadGraphsBtn" class="btn btn-secondary btn-md w-20">Download All Graphs</button>
   </div>
   <!-- Place the scripts here, after the include and button -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script>
-    document.getElementById('downloadGraphsBtn').addEventListener('click', function() {
-        // Select the section containing all your charts
-        // This assumes all your charts are inside a parent div (e.g., the first .chart-row's parent)
-        const analyticsSection = document.querySelector('.chart-row').parentNode;
-        html2canvas(analyticsSection, {backgroundColor: "#f8fbff", scale: 2}).then(canvas => {
-            const imgData = canvas.toDataURL('image/png');
-            const cropHeight = canvas.height - 30;
-            const pdf = new window.jspdf.jsPDF({
-                orientation: 'portrait',
-                unit: 'px',
-                format: [canvas.width, cropHeight]
-            });
-            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, cropHeight, undefined,'FAST');
-            pdf.save('Data_Analytics_Graphs.pdf');
-        });
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+document.getElementById('downloadGraphsBtn').addEventListener('click', async function() {
+    const chartBoxes = document.querySelectorAll('.chart-box');
+    if (chartBoxes.length === 0) {
+        alert("No charts found!");
+        return;
+    }
+    const pdf = new window.jspdf.jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'a4'
     });
-  </script>
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const marginX = 20;
+    const marginY = 20;
+    const gridRows = 2;
+    const gridCols = 2;
+    const chartsPerPage = gridRows * gridCols;
+    const usableWidth = pageWidth - 2 * marginX;
+    const usableHeight = pageHeight - 2 * marginY;
+    const cellWidth = usableWidth / gridCols;
+    const cellHeight = usableHeight / gridRows;
+
+    for (let i = 0; i < chartBoxes.length; i++) {
+        if (i > 0 && i % chartsPerPage === 0) {
+            pdf.addPage();
+        }
+        const chartBox = chartBoxes[i];
+        const canvas = await html2canvas(chartBox, {backgroundColor: "#f8fbff", scale: 2});
+        const imgData = canvas.toDataURL('image/png');
+
+        // Calculate aspect-ratio-preserving size
+        let imgWidth = canvas.width;
+        let imgHeight = canvas.height;
+        const widthRatio = cellWidth / imgWidth;
+        const heightRatio = cellHeight / imgHeight;
+        const scale = Math.min(widthRatio, heightRatio, 1); // never upscale
+        imgWidth = imgWidth * scale;
+        imgHeight = imgHeight * scale;
+
+        // Center the image in the cell
+        const posInPage = i % chartsPerPage;
+        const row = Math.floor(posInPage / gridCols);
+        const col = posInPage % gridCols;
+        const cellX = marginX + col * cellWidth;
+        const cellY = marginY + row * cellHeight;
+        const posX = cellX + (cellWidth - imgWidth) / 2;
+        const posY = cellY + (cellHeight - imgHeight) / 2;
+
+        pdf.addImage(imgData, 'PNG', posX, posY, imgWidth, imgHeight, undefined, 'FAST');
+    }
+    pdf.save('All_Analytics_Graphs.pdf');
+});
+</script>
 {% endblock %}

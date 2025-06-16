@@ -2,6 +2,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from sqlalchemy.orm import validates
+from datetime import datetime
 
 # This file contains the database models for the application.
 db = SQLAlchemy()
@@ -39,11 +40,11 @@ class Project(db.Model):
     scope_objective = db.Column(db.Text, nullable=True)
     expected_deliverables = db.Column(db.String(300))
     Outcome_Dovetailing_with_Ongoing_Work=db.Column(db.Text,nullable = True)
-    rab_meeting_date = db.Column(db.Text, nullable = True)   
-    rab_meeting_held_date = db.Column(db.Text, nullable = True)
+    rab_meeting_date = db.Column(db.Date, nullable = True)   
+    rab_meeting_held_date = db.Column(db.Date, nullable = True)
     rab_minutes = db.Column(db.Text)
-    gc_meeting_date = db.Column(db.Text, nullable = True)
-    gc_meeting_held_date = db.Column(db.Text, nullable = True)   
+    gc_meeting_date = db.Column(db.Date, nullable = True)
+    gc_meeting_held_date = db.Column(db.Date, nullable = True)   
     gc_minutes = db.Column(db.Text)
     technical_status = db.Column(db.Text, nullable = True)
     administrative_status = db.Column(db.String(50), nullable = False, default = "Ongoing")
@@ -67,4 +68,4 @@ class Project(db.Model):
         if self.original_pdc and revised_pdc < self.original_pdc:
             raise ValueError("Revised PDC cannot be before the Original PDC.")
         return revised_pdc
-   
+    

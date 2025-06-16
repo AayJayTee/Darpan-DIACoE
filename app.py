@@ -39,14 +39,17 @@ db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-#Flas-Migrate for database migrations
+#Flask-Migrate for database migrations
 migrate = Migrate(app, db)
 
-
-UPLOAD_FOLDER = os.path.join(app.instance_path, 'uploads')
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+UPLOAD_FOLDER = 'static/forms'
+ALLOWED_EXTENSIONS = {'pdf'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+class NoticeForm(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
 
 def save_pdf(file):
     if file and file.filename and file.filename.endswith('.pdf'):
@@ -57,6 +60,8 @@ def save_pdf(file):
         return filename
     return None
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Initialize Flask-Login
 @login_manager.user_loader
@@ -113,8 +118,10 @@ def dashboard():
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
     cost_max = request.args.get('cost_max', '').strip()
+    sanction_year_start = request.args.get('sanction_year_start', '').strip()
+    sanction_year_end = request.args.get('sanction_year_end', '').strip()
 
-    if column and (value or (column == 'cost_lakhs' and (cost_min or cost_max))):
+    if column and (value or (column == 'cost_lakhs' and (cost_min or cost_max)) or (column == 'sanction_year' and (sanction_year_start or sanction_year_end))):
         if column == 'serial_no':
             query = query.filter(Project.serial_no.ilike(f"%{value}%"))
         elif column == 'title':
@@ -147,8 +154,14 @@ def dashboard():
             query = query.filter(Project.administrative_status.ilike(f"%{value}%"))
         elif column == 'sanction_year':
             try:
-                year = int(value)
-                query = query.filter(db.extract('year', Project.sanctioned_date) == year)
+                if sanction_year_start:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) >= int(sanction_year_start))
+                if sanction_year_end:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) <= int(sanction_year_end))
+                # fallback for single value (if only value is provided)
+                if not (sanction_year_start or sanction_year_end) and value:
+                    year = int(value)
+                    query = query.filter(db.extract('year', Project.sanctioned_date) == year)
             except ValueError:
                 pass
 
@@ -164,17 +177,17 @@ def dashboard():
         if p.revised_pdc and today <= p.revised_pdc <= soon and (not p.administrative_status or p.administrative_status.lower() != "completed")
     ]
 
-    # Approaching RAB Meeting Scheduled Date
-    approaching_rab = [
-        p for p in projects
-        if p.rab_meeting_date and isinstance(p.rab_meeting_date, datetime) and today <= p.rab_meeting_date.date() <= soon
-    ]
+    approaching_rab = Project.query.filter(
+        Project.rab_meeting_date != None,
+        Project.rab_meeting_date >= today,
+        Project.rab_meeting_date <= soon
+    ).all()
 
-    # Approaching GC Meeting Scheduled Date
-    approaching_gc = [
-        p for p in projects
-        if p.gc_meeting_date and isinstance(p.gc_meeting_date, datetime) and today <= p.gc_meeting_date.date() <= soon
-    ]
+    approaching_gc = Project.query.filter(
+        Project.gc_meeting_date != None,
+        Project.gc_meeting_date >= today,
+        Project.gc_meeting_date <= soon
+    ).all()
 
     return render_template(
         'dashboard.html',
@@ -582,8 +595,10 @@ def filtered_analytics():
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
     cost_max = request.args.get('cost_max', '').strip()
+    sanction_year_start = request.args.get('sanction_year_start', '').strip()
+    sanction_year_end = request.args.get('sanction_year_end', '').strip()
 
-    if column and (value or (column == 'cost_lakhs' and (cost_min or cost_max))):
+    if column and (value or (column == 'cost_lakhs' and (cost_min or cost_max)) or (column == 'sanction_year' and (sanction_year_start or sanction_year_end))):
         if column == 'serial_no':
             query = query.filter(Project.serial_no.ilike(f"%{value}%"))
         elif column == 'title':
@@ -616,8 +631,14 @@ def filtered_analytics():
             query = query.filter(Project.administrative_status.ilike(f"%{value}%"))
         elif column == 'sanction_year':
             try:
-                year = int(value)
-                query = query.filter(db.extract('year', Project.sanctioned_date) == year)
+                if sanction_year_start:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) >= int(sanction_year_start))
+                if sanction_year_end:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) <= int(sanction_year_end))
+                # fallback for single value (if only value is provided)
+                if not (sanction_year_start or sanction_year_end) and value:
+                    year = int(value)
+                    query = query.filter(db.extract('year', Project.sanctioned_date) == year)
             except ValueError:
                 pass
 
@@ -709,6 +730,99 @@ def add_project():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/upload_form', methods=['GET', 'POST'])
+@login_required
+def upload_form():
+    if current_user.role != 'admin':
+        return "Unauthorized", 403
+    if request.method == 'POST':
+        title = request.form['title']
+        file = request.files['pdf']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            new_form = NoticeForm(title=title, filename=filename)
+            db.session.add(new_form)
+            db.session.commit()
+            flash('Form uploaded successfully!', 'success')
+            return redirect(url_for('notices'))
+        else:
+            flash('Invalid file type.', 'danger')
+    return render_template('upload_form.html')
+
+@app.route('/manage_form_action', methods=['POST'])
+@login_required
+def manage_form_action():
+    if current_user.role != 'admin':
+        return "Unauthorized", 403
+    form_id = request.form.get('form_id')
+    action = request.form.get('action')
+    if not form_id or not action:
+        flash("Please select a form and action.", "danger")
+        return redirect(url_for('notices'))
+    if action == "edit":
+        return redirect(url_for('edit_form', form_id=form_id))
+    elif action == "delete":
+        # Directly delete the form with a JS confirm in the HTML, no confirmation page
+        form_obj = NoticeForm.query.get_or_404(form_id)
+        try:
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], form_obj.filename))
+        except Exception:
+            pass
+        db.session.delete(form_obj)
+        db.session.commit()
+        flash('Form deleted successfully!', 'success')
+        return redirect(url_for('notices'))
+    else:
+        flash("Invalid action.", "danger")
+        return redirect(url_for('notices'))
+
+@app.route('/edit_form/<int:form_id>', methods=['GET', 'POST'])
+@login_required
+def edit_form(form_id):
+    if current_user.role != 'admin':
+        return "Unauthorized", 403
+    form_obj = NoticeForm.query.get_or_404(form_id)
+    if request.method == 'POST':
+        new_title = request.form['title']
+        file = request.files.get('pdf')
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            # Optionally delete old file
+            try:
+                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], form_obj.filename))
+            except Exception:
+                pass
+            form_obj.filename = filename
+        form_obj.title = new_title
+        db.session.commit()
+        flash('Form updated successfully!', 'success')
+        return redirect(url_for('notices'))
+    return render_template('edit_form.html', form_obj=form_obj)
+
+@app.route('/delete_form/<int:form_id>', methods=['POST'])
+@login_required
+def delete_form(form_id):
+    if current_user.role != 'admin':
+        return "Unauthorized", 403
+    form_obj = NoticeForm.query.get_or_404(form_id)
+    # Optionally delete the file from disk
+    try:
+        os.remove(os.path.join(app.config['UPLOAD_FOLDER'], form_obj.filename))
+    except Exception:
+        pass
+    db.session.delete(form_obj)
+    db.session.commit()
+    flash('Form deleted successfully!', 'success')
+    return redirect(url_for('notices'))
+
+@app.route('/forms/<filename>')
+@login_required
+def serve_form(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
 
 @app.route('/post_technical_status/<int:project_id>', methods=['POST'])
 @login_required
@@ -738,14 +852,14 @@ def post_rab_meeting_scheduled_date(project_id):
         return jsonify({'success': False, 'message': 'Only admins can update RAB Meeting Scheduled Date.'}), 403
     rab_meeting_date = request.form.get('rab_meeting_date', '').strip()
     if rab_meeting_date:
-        new_rab_meeting_date = f"{rab_meeting_date}"
-        if project.rab_meeting_date:
-            project.rab_meeting_date += "\n" + new_rab_meeting_date
-        else:
-            project.rab_meeting_date = new_rab_meeting_date
-        db.session.commit()
-        log_action(current_user, f"Updates RAB Meeting Scheduled Date '{project.title}'")
-        return jsonify({'success': True, 'rab_meeting_date': new_rab_meeting_date})
+        try:
+            # Parse and store as date object
+            project.rab_meeting_date = datetime.strptime(rab_meeting_date, "%Y-%m-%d")
+            db.session.commit()
+            log_action(current_user, f"Updates RAB Meeting Scheduled Date '{project.title}'")
+            return jsonify({'success': True, 'rab_meeting_date': rab_meeting_date})
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid date format.'}), 400
     return jsonify({'success': False, 'message': 'RAB Meeting Scheduled Date cannot be empty.'}), 400
 
 
@@ -899,8 +1013,6 @@ def modify_search():
         projects = None
 
     return render_template('modify_search.html', projects=projects)
-
-
 
 # Route for the edit project page (Admin only)
 @app.route('/edit/<int:project_id>', methods=['GET', 'POST'])
@@ -1249,8 +1361,14 @@ def download_filtered_pdf():
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
     cost_max = request.args.get('cost_max', '').strip()
+    sanction_year_start = request.args.get('sanction_year_start', '').strip()
+    sanction_year_end = request.args.get('sanction_year_end', '').strip()
 
-    if column and (value or (column == 'cost_lakhs' and (cost_min or cost_max))):
+    if column and (
+        value or 
+        (column == 'cost_lakhs' and (cost_min or cost_max)) or
+        (column == 'sanction_year' and (sanction_year_start or sanction_year_end))
+    ):
         if column == 'serial_no':
             query = query.filter(Project.serial_no.ilike(f"%{value}%"))
         elif column == 'title':
@@ -1283,8 +1401,14 @@ def download_filtered_pdf():
             query = query.filter(Project.administrative_status.ilike(f"%{value}%"))
         elif column == 'sanction_year':
             try:
-                year = int(value)
-                query = query.filter(db.extract('year', Project.sanctioned_date) == year)
+                if sanction_year_start:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) >= int(sanction_year_start))
+                if sanction_year_end:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) <= int(sanction_year_end))
+                # fallback for single value (if only value is provided)
+                if not (sanction_year_start or sanction_year_end) and value:
+                    year = int(value)
+                    query = query.filter(db.extract('year', Project.sanctioned_date) == year)
             except ValueError:
                 pass
 
@@ -1386,6 +1510,13 @@ def download_filtered_pdf():
     buffer.seek(0)
     filename = f"DIA_CoE_filtered_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
+#Route for notices
+@app.route('/notices')
+@login_required
+def notices():
+    forms = NoticeForm.query.all()
+    return render_template('notices.html', forms=forms)
 
 # Route for the view logs page(Admin only)
 @app.route('/logs')

@@ -76,6 +76,9 @@
             <a class="nav-link {% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
           </li>
           <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'notices' %}active{% endif %}" href="{{ url_for('notices') }}">Notices/Forms</a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">Database</a>
           </li>
           <li class="nav-item">

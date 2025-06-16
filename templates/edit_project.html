@@ -129,7 +129,7 @@
 
         <div class="form-group">
             {{ form.rab_meeting_date.label(class="form-label") }}
-            {{ form.rab_meeting_date(class="form-control") }}
+            {{ form.rab_meeting_date(class="form-control", type="date", type="date", type="date") }}
             {% for error in form.rab_meeting_date.errors %}
                 <div class="text-danger small">{{ error }}</div>
             {% endfor %}
@@ -137,7 +137,7 @@
 
         <div class="form-group">
             {{ form.rab_meeting_held_date.label(class="form-label") }}
-            {{ form.rab_meeting_held_date(class="form-control") }}
+            {{ form.rab_meeting_held_date(class="form-control", type="date", type="date", type="date") }}
             {% for error in form.rab_meeting_held_date.errors %}
                 <div class="text-danger small">{{ error }}</div>
             {% endfor %}
@@ -162,7 +162,7 @@
       
         <div class="form-group">
             {{ form.gc_meeting_date.label(class="form-label") }}
-            {{ form.gc_meeting_date(class="form-control") }}
+            {{ form.gc_meeting_date(class="form-control", type="date", type="date", type="date") }}
             {% for error in form.gc_meeting_date.errors %}
                 <div class="text-danger small">{{ error }}</div>
             {% endfor %}
@@ -170,7 +170,7 @@
 
         <div class="form-group">
             {{ form.gc_meeting_held_date.label(class="form-label") }}
-            {{ form.gc_meeting_held_date(class="form-control") }}
+            {{ form.gc_meeting_held_date(class="form-control", type="date", type="date", type="date") }}
             {% for error in form.gc_meeting_held_date.errors %}
                 <div class="text-danger small">{{ error }}</div>
             {% endfor %}
