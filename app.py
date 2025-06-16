@@ -1539,7 +1539,6 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
-# Auto-create tables and seed default users
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
@@ -1548,6 +1547,5 @@ with app.app_context():
         db.session.add_all([admin_user, viewer_user])
         db.session.commit()
 
-# Only runs locally, not on Render
 if __name__ == '__main__':
     app.run(debug=True)
