@@ -1,4 +1,4 @@
-<h2 class="text-center mb-4" style="color:#052155; font-weight:700;">Data Analytics</h2>
+<h2 class="text-center mb-4" style="color:#000000;">Data Analytics</h2>
 
 <style>
   .chart-row {
@@ -881,27 +881,53 @@ document.dispatchEvent(new Event('analyticsChartsRendered'));
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-document.getElementById('downloadFilteredGraphsBtn').addEventListener('click', function() {
-    // Select the section containing all your filtered charts
-    const analyticsSection = document.querySelector('.chart-row').parentNode;
-    html2canvas(analyticsSection, {backgroundColor: "#f8fbff", scale: 2}).then(canvas => {
-        // Crop 60px from the bottom if needed
-        const cropPx = 60;
-        const croppedCanvas = document.createElement('canvas');
-        croppedCanvas.width = canvas.width;
-        croppedCanvas.height = canvas.height - cropPx;
-        const ctx = croppedCanvas.getContext('2d');
-        ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height - cropPx, 0, 0, canvas.width, canvas.height - cropPx);
-
-        const imgData = croppedCanvas.toDataURL('image/png');
-        const pdf = new window.jspdf.jsPDF({
-            orientation: 'portrait',
-            unit: 'px',
-            format: [croppedCanvas.width, croppedCanvas.height]
-        });
-        pdf.addImage(imgData, 'PNG', 0, 0, croppedCanvas.width, croppedCanvas.height, undefined, 'FAST');
-        pdf.save('Filtered_Analytics_Graphs.pdf');
+document.getElementById('downloadFilteredGraphsBtn').addEventListener('click', async function() {
+    const chartBoxes = document.querySelectorAll('.chart-box');
+    const pdf = new window.jspdf.jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'a4'
     });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const marginX = 20;
+    const marginY = 20;
+    const gridRows = 2;
+    const gridCols = 2;
+    const chartsPerPage = gridRows * gridCols;
+    const usableWidth = pageWidth - 2 * marginX;
+    const usableHeight = pageHeight - 2 * marginY;
+    const cellWidth = usableWidth / gridCols;
+    const cellHeight = usableHeight / gridRows;
+
+    for (let i = 0; i < chartBoxes.length; i++) {
+        if (i > 0 && i % chartsPerPage === 0) {
+            pdf.addPage();
+        }
+        const chartBox = chartBoxes[i];
+        const canvas = await html2canvas(chartBox, {backgroundColor: "#f8fbff", scale: 2});
+        const imgData = canvas.toDataURL('image/png');
+
+        // Maintain aspect ratio, center in cell
+        let imgWidth = canvas.width;
+        let imgHeight = canvas.height;
+        const widthRatio = cellWidth / imgWidth;
+        const heightRatio = cellHeight / imgHeight;
+        const scale = Math.min(widthRatio, heightRatio, 1);
+        imgWidth = imgWidth * scale;
+        imgHeight = imgHeight * scale;
+        const posInPage = i % chartsPerPage;
+        const row = Math.floor(posInPage / gridCols);
+        const col = posInPage % gridCols;
+        const cellX = marginX + col * cellWidth;
+        const cellY = marginY + row * cellHeight;
+        const posX = cellX + (cellWidth - imgWidth) / 2;
+        const posY = cellY + (cellHeight - imgHeight) / 2;
+
+        pdf.addImage(imgData, 'PNG', posX, posY, imgWidth, imgHeight, undefined, 'FAST');
+    }
+    pdf.save('Filtered_Analytics_Graphs.pdf');
 });
 </script>
 {% endif %}

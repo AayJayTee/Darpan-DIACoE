@@ -61,7 +61,7 @@
   {% endif %}
 
   {% if approaching_rab %}
-    <div class="alert alert-warning d-flex flex-column justify-content-center align-items-start" style="min-height:90px;">
+    <div class="alert alert-warning ...">
       <strong>Approaching RAB Meeting Dates:</strong>
       <ul class="mb-0">
         {% for p in approaching_rab %}
@@ -72,7 +72,7 @@
   {% endif %}
 
   {% if approaching_gc %}
-    <div class="alert alert-warning d-flex flex-column justify-content-center align-items-start" style="min-height:90px;">
+    <div class="alert alert-warning ...">
       <strong>Approaching GC Meeting Dates:</strong>
       <ul class="mb-0">
         {% for p in approaching_gc %}
@@ -82,7 +82,7 @@
     </div>
   {% endif %}
 
-  <h2 class="mb-4">DIA-CoE Projects DARPAN</h2>
+  <h2 class="mb-4" style="color: #000000;">DIA-CoE Projects DARPAN</h2>
 
   {% if current_user.role == 'admin' %}
     <div class="mb-4 d-flex flex-wrap gap-3">
@@ -121,6 +121,14 @@
           <input type="number" step="any" name="cost_max" class="form-control" placeholder="Max Cost" value="{{ request.args.get('cost_max', '') }}">
         </div>
       </div>
+      <!-- Sanction year range inputs (hidden unless sanction_year is selected) -->
+      <div class="col-md-4" id="sanctionYearRangeInputs" style="display:none;">
+        <div class="input-group">
+          <input type="number" name="sanction_year_start" class="form-control" placeholder="Start Year" min="1900" max="2100" value="{{ request.args.get('sanction_year_start', '') }}">
+          <span class="input-group-text">to</span>
+          <input type="number" name="sanction_year_end" class="form-control" placeholder="End Year" min="1900" max="2100" value="{{ request.args.get('sanction_year_end', '') }}">
+        </div>
+      </div>
       <!-- Default value input -->
       <div class="col-md-4" id="valueInputWrapper">
         <input type="text" name="value" id="filterValue" class="form-control" placeholder="Enter value" value="{{ request.args.get('value', '') }}">
@@ -138,9 +146,20 @@
         const valueInput = document.getElementById('filterValue');
         const valueInputWrapper = document.getElementById('valueInputWrapper');
         const costRangeInputs = document.getElementById('costRangeInputs');
+        const sanctionYearRangeInputs = document.getElementById('sanctionYearRangeInputs');
+
+        // Hide all by default
+        valueInputWrapper.style.display = 'none';
+        costRangeInputs.style.display = 'none';
+        sanctionYearRangeInputs.style.display = 'none';
+
         if (column === 'cost_lakhs') {
           valueInputWrapper.style.display = 'none';
           costRangeInputs.style.display = '';
+        } else if (column === 'sanction_year') {
+          valueInputWrapper.style.display = 'none';
+          costRangeInputs.style.display = 'none';
+          sanctionYearRangeInputs.style.display = '';
         } else if (column === 'sanctioned_date' || column === 'original_pdc' || column === 'revised_pdc') {
           valueInput.type = 'date';
           valueInput.placeholder = '';
@@ -155,6 +174,8 @@
       }
       // Run on page load
       updateInputType();
+      // Call on page load to set correct state
+      document.addEventListener('DOMContentLoaded', updateInputType);
     </script>
   {% endif %}
   
@@ -272,17 +293,37 @@
 
 <!-- Add this below your table in dashboard.html -->
 <form id="filteredPdfForm" method="get" action="{{ url_for('download_filtered_pdf') }}">
-    <!-- Hidden inputs for filter parameters, to be filled by JS -->
-    <input type="hidden" name="column" id="pdf_column" value="{{ request.args.get('column', '') }}">
-    <input type="hidden" name="value" id="pdf_value" value="{{ request.args.get('value', '') }}">
-    <input type="hidden" name="cost_min" id="pdf_cost_min" value="{{ request.args.get('cost_min', '') }}">
-    <input type="hidden" name="cost_max" id="pdf_cost_max" value="{{ request.args.get('cost_max', '') }}">
-    <button type="submit" class="btn btn-secondary btn-md w-10">Download Filtered PDF</button>
-</form>
+        <!-- Hidden inputs for filter parameters, to be filled by JS -->
+        <input type="hidden" name="column" id="pdf_column" value="{{ request.args.get('column', '') }}">
+        <input type="hidden" name="value" id="pdf_value" value="{{ request.args.get('value', '') }}">
+        <input type="hidden" name="cost_min" id="pdf_cost_min" value="{{ request.args.get('cost_min', '') }}">
+        <input type="hidden" name="cost_max" id="pdf_cost_max" value="{{ request.args.get('cost_max', '') }}">
+        <input type="hidden" name="sanction_year_start" id="pdf_sanction_year_start" value="{{ request.args.get('sanction_year_start', '') }}">
+        <input type="hidden" name="sanction_year_end" id="pdf_sanction_year_end" value="{{ request.args.get('sanction_year_end', '') }}">
+        <button type="submit" class="btn btn-secondary btn-md w-10">Download Filtered PDF</button>
+  </form>
+
+  <script>
+      function syncPdfFormInputs() {
+        document.getElementById('pdf_column').value = document.getElementById('columnSelect').value;
+        document.getElementById('pdf_value').value = document.getElementById('filterValue').value;
+        document.getElementById('pdf_cost_min').value = document.querySelector('[name="cost_min"]').value;
+        document.getElementById('pdf_cost_max').value = document.querySelector('[name="cost_max"]').value;
+        document.getElementById('pdf_sanction_year_start').value = document.querySelector('[name="sanction_year_start"]').value;
+        document.getElementById('pdf_sanction_year_end').value = document.querySelector('[name="sanction_year_end"]').value;
+      }
+
+      // Sync on filter form submit and on change
+      document.querySelector('form[action="{{ url_for("dashboard") }}"]').addEventListener('submit', syncPdfFormInputs);
+      document.querySelector('form[action="{{ url_for("dashboard") }}"]').addEventListener('change', syncPdfFormInputs);
+      // Also sync on page load
+      syncPdfFormInputs();
+    </script>
 
 <br>
 
 <button id="showAnalyticsBtn" class="btn btn-secondary btn-md w-10">Show Data Analytics for Filtered Data</button>
+<br>
 <div id="filteredAnalytics" style="display:none; margin-top: 30px;"></div>
 <script>
 document.getElementById('showAnalyticsBtn').addEventListener('click', function() {
@@ -290,7 +331,9 @@ document.getElementById('showAnalyticsBtn').addEventListener('click', function()
     const value = document.getElementById('pdf_value').value;
     const cost_min = document.getElementById('pdf_cost_min').value;
     const cost_max = document.getElementById('pdf_cost_max').value;
-    fetch(`/filtered_analytics?column=${encodeURIComponent(column)}&value=${encodeURIComponent(value)}&cost_min=${encodeURIComponent(cost_min)}&cost_max=${encodeURIComponent(cost_max)}`)
+    const sanction_year_start = document.getElementById('pdf_sanction_year_start').value;
+    const sanction_year_end = document.getElementById('pdf_sanction_year_end').value;
+    fetch(`/filtered_analytics?column=${encodeURIComponent(column)}&value=${encodeURIComponent(value)}&cost_min=${encodeURIComponent(cost_min)}&cost_max=${encodeURIComponent(cost_max)}&sanction_year_start=${encodeURIComponent(sanction_year_start)}&sanction_year_end=${encodeURIComponent(sanction_year_end)}`)
         .then(response => response.text())
         .then(html => {
             const container = document.getElementById('filteredAnalytics');
@@ -315,8 +358,6 @@ document.getElementById('showAnalyticsBtn').addEventListener('click', function()
 </script>
 
 <br>
-<br>
-
 <script>
     const searchInput = document.getElementById('searchInput');
     const projectTableBody = document.getElementById('projectTableBody');

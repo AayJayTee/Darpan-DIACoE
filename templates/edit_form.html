@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Edit Form</h2>
+<form method="post" enctype="multipart/form-data">
+  <div class="mb-3">
+    <label for="title" class="form-label">Form Name</label>
+    <input type="text" class="form-control" id="title" name="title" value="{{ form_obj.title }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="pdf" class="form-label">Replace PDF (optional)</label>
+    <input type="file" class="form-control" id="pdf" name="pdf" accept="application/pdf">
+    <small>Current file: {{ form_obj.filename }}</small>
+  </div>
+  <button type="submit" class="btn btn-primary">Save Changes</button>
+  <a href="{{ url_for('notices') }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

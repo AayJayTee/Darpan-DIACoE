@@ -132,14 +132,14 @@
     {{ form.rab_meeting_date.label(class="form-label") }}
     {% if form.rab_meeting_date.data %}
       <div class="border rounded p-2 mb-2" style="background:#f8f9fa; max-height:80px; overflow:auto; font-size:0.95em;">
-        {% for date in form.rab_meeting_date.data.split('\n') %}
-          <div class="mb-1 text-secondary" style="white-space:pre-line;">{{ date }}</div>
-        {% endfor %}
+        <div class="mb-1 text-secondary" style="white-space:pre-line;">
+          {{ form.rab_meeting_date.data }}
+        </div>
       </div>
     {% else %}
       <div class="text-muted mb-2">No previous RAB meeting dates.</div>
     {% endif %}
-    {{ form.rab_meeting_date(class="form-control", placeholder="Add new RAB meeting date") }}
+    {{ form.rab_meeting_date(class="form-control", type="date", type="date", type="date", type="date", placeholder="Add new RAB meeting date") }}
     {% for error in form.rab_meeting_date.errors %}
       <div class="text-danger small">{{ error }}</div>
     {% endfor %}
@@ -150,14 +150,14 @@
     {{ form.rab_meeting_held_date.label(class="form-label") }}
     {% if form.rab_meeting_held_date.data %}
       <div class="border rounded p-2 mb-2" style="background:#f8f9fa; max-height:80px; overflow:auto; font-size:0.95em;">
-        {% for date in form.rab_meeting_held_date.data.split('\n') %}
-          <div class="mb-1 text-secondary" style="white-space:pre-line;">{{ date }}</div>
-        {% endfor %}
+        <div class="mb-1 text-secondary" style="white-space:pre-line;">
+          {{ form.rab_meeting_held_date.data }}
+        </div>
       </div>
     {% else %}
       <div class="text-muted mb-2">No previous RAB meeting held dates.</div>
     {% endif %}
-    {{ form.rab_meeting_held_date(class="form-control", placeholder="Add new RAB meeting held date") }}
+    {{ form.rab_meeting_held_date(class="form-control", type="date", type="date", type="date", type="date", placeholder="Add new RAB meeting held date") }}
     {% for error in form.rab_meeting_held_date.errors %}
       <div class="text-danger small">{{ error }}</div>
     {% endfor %}
@@ -173,41 +173,41 @@
     <div class="text-muted mb-2">Upload one or more RAB Minutes of Meeting PDFs.</div>
   </div>
 
-  <!-- GC Meeting Scheduled Date -->
-  <div class="mb-3">
-    {{ form.gc_meeting_date.label(class="form-label") }}
-    {% if form.gc_meeting_date.data %}
-      <div class="border rounded p-2 mb-2" style="background:#f8f9fa; max-height:80px; overflow:auto; font-size:0.95em;">
-        {% for date in form.gc_meeting_date.data.split('\n') %}
-          <div class="mb-1 text-secondary" style="white-space:pre-line;">{{ date }}</div>
-        {% endfor %}
+<!-- GC Meeting Scheduled Date -->
+<div class="mb-3">
+  {{ form.gc_meeting_date.label(class="form-label") }}
+  {% if form.gc_meeting_date.data %}
+    <div class="border rounded p-2 mb-2" style="background:#f8f9fa; max-height:80px; overflow:auto; font-size:0.95em;">
+      <div class="mb-1 text-secondary" style="white-space:pre-line;">
+        {{ form.gc_meeting_date.data }}
       </div>
-    {% else %}
-      <div class="text-muted mb-2">No previous GC meeting dates.</div>
-    {% endif %}
-    {{ form.gc_meeting_date(class="form-control", placeholder="Add new GC meeting date") }}
-    {% for error in form.gc_meeting_date.errors %}
-      <div class="text-danger small">{{ error }}</div>
-    {% endfor %}
-  </div>
+    </div>
+  {% else %}
+    <div class="text-muted mb-2">No previous GC meeting dates.</div>
+  {% endif %}
+  {{ form.gc_meeting_date(class="form-control", type="date", type="date", type="date", type="date", placeholder="Add new GC meeting date") }}
+  {% for error in form.gc_meeting_date.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+</div>
 
-  <!-- GC Meeting Held Date -->
-  <div class="mb-3">
-    {{ form.gc_meeting_held_date.label(class="form-label") }}
-    {% if form.gc_meeting_held_date.data %}
-      <div class="border rounded p-2 mb-2" style="background:#f8f9fa; max-height:80px; overflow:auto; font-size:0.95em;">
-        {% for date in form.gc_meeting_held_date.data.split('\n') %}
-          <div class="mb-1 text-secondary" style="white-space:pre-line;">{{ date }}</div>
-        {% endfor %}
+<!-- GC Meeting Held Date -->
+<div class="mb-3">
+  {{ form.gc_meeting_held_date.label(class="form-label") }}
+  {% if form.gc_meeting_held_date.data %}
+    <div class="border rounded p-2 mb-2" style="background:#f8f9fa; max-height:80px; overflow:auto; font-size:0.95em;">
+      <div class="mb-1 text-secondary" style="white-space:pre-line;">
+        {{ form.gc_meeting_held_date.data }}
       </div>
-    {% else %}
-      <div class="text-muted mb-2">No previous GC meeting held dates.</div>
-    {% endif %}
-    {{ form.gc_meeting_held_date(class="form-control", placeholder="Add new GC meeting held date") }}
-    {% for error in form.gc_meeting_held_date.errors %}
-      <div class="text-danger small">{{ error }}</div>
-    {% endfor %}
-  </div>
+    </div>
+  {% else %}
+    <div class="text-muted mb-2">No previous GC meeting held dates.</div>
+  {% endif %}
+  {{ form.gc_meeting_held_date(class="form-control", type="date", type="date", type="date", type="date", placeholder="Add new GC meeting held date") }}
+  {% for error in form.gc_meeting_held_date.errors %}
+    <div class="text-danger small">{{ error }}</div>
+  {% endfor %}
+</div>
 
   <!-- GC Minutes of Meeting (PDF Upload) -->
   <div class="mb-3">
