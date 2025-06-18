@@ -749,12 +749,31 @@ def uploaded_file(filename):
 @app.route('/upload_form', methods=['GET', 'POST'])
 @login_required
 def upload_form():
-    form = UploadForm()  # or whatever your form class is called
+    form = UploadForm()  # Replace with your actual form class
     if form.validate_on_submit():
-        # handle form submission
-        pass
-    return render_template('upload_form.html', form=form)
+        # Check if a file is uploaded
+        file = form.file.data  # Assuming the form has a 'file' field
+        if file and allowed_file(file.filename):  # Validate file type
+            # Secure the filename and save the file
+            filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
 
+            # Save file details to the database (if applicable)
+            notice_form = NoticeForm(
+                form_no=form.form_no.data,
+                title=form.title.data,
+                submission_schedule=form.submission_schedule.data,
+                filename=filename
+            )
+            db.session.add(notice_form)
+            db.session.commit()
+
+            flash('File uploaded successfully!', 'success')
+            return redirect(url_for('notices'))
+        else:
+            flash('Invalid file type. Only PDF files are allowed.', 'danger')
+    return render_template('upload_form.html', form=form)
 @app.route('/manage_form_action', methods=['POST'])
 @login_required
 def manage_form_action():
@@ -861,16 +880,19 @@ def post_rab_meeting_held_date(project_id):
     project = Project.query.get_or_404(project_id)
     if current_user.role != 'admin':
         return jsonify({'success': False, 'message': 'Only admins can update RAB Meeting Held Date.'}), 403
+
     rab_meeting_held_date = request.form.get('rab_meeting_held_date', '').strip()
     if rab_meeting_held_date:
-        new_rab_meeting_held_date = f"{rab_meeting_held_date}"
-        if project.rab_meeting_held_date:
-            project.rab_meeting_held_date += "\n" + new_rab_meeting_held_date
-        else:
+        try:
+            # Convert string to Python date object
+            new_rab_meeting_held_date = datetime.strptime(rab_meeting_held_date, '%Y-%m-%d').date()
             project.rab_meeting_held_date = new_rab_meeting_held_date
-        db.session.commit()
-        log_action(current_user, f"Updates RAB Meeting Held Date '{project.title}'")
-        return jsonify({'success': True, 'rab_meeting_held_date': new_rab_meeting_held_date})
+            db.session.commit()
+            log_action(current_user, f"Updated RAB Meeting Held Date for '{project.title}'")
+            return jsonify({'success': True, 'rab_meeting_held_date': str(new_rab_meeting_held_date)})
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
     return jsonify({'success': False, 'message': 'RAB Meeting Held Date cannot be empty.'}), 400
 
 @app.route('/post_rab_minutes_of_meeting/<int:project_id>', methods=['POST'])
@@ -898,16 +920,19 @@ def post_gc_meeting_scheduled_date(project_id):
     project = Project.query.get_or_404(project_id)
     if current_user.role != 'admin':
         return jsonify({'success': False, 'message': 'Only admins can update GC Meeting Scheduled Date.'}), 403
+
     gc_meeting_date = request.form.get('gc_meeting_date', '').strip()
     if gc_meeting_date:
-        new_gc_meeting_date = f"{gc_meeting_date}"
-        if project.gc_meeting_date:
-            project.gc_meeting_date += "\n" + new_gc_meeting_date
-        else:
+        try:
+            # Convert string to Python date object
+            new_gc_meeting_date = datetime.strptime(gc_meeting_date, '%Y-%m-%d').date()
             project.gc_meeting_date = new_gc_meeting_date
-        db.session.commit()
-        log_action(current_user, f"Updates GC Meeting Scheduled Date '{project.title}'")
-        return jsonify({'success': True, 'gc_meeting_date': new_gc_meeting_date})
+            db.session.commit()
+            log_action(current_user, f"Updated GC Meeting Scheduled Date for '{project.title}'")
+            return jsonify({'success': True, 'gc_meeting_date': str(new_gc_meeting_date)})
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
     return jsonify({'success': False, 'message': 'GC Meeting Scheduled Date cannot be empty.'}), 400
 
 
@@ -918,16 +943,19 @@ def post_gc_meeting_held_date(project_id):
     project = Project.query.get_or_404(project_id)
     if current_user.role != 'admin':
         return jsonify({'success': False, 'message': 'Only admins can update GC Meeting Held Date.'}), 403
+
     gc_meeting_held_date = request.form.get('gc_meeting_held_date', '').strip()
     if gc_meeting_held_date:
-        new_gc_meeting_held_date = f"{gc_meeting_held_date}"
-        if project.gc_meeting_held_date:
-            project.gc_meeting_held_date += "\n" + new_gc_meeting_held_date
-        else:
+        try:
+            # Convert string to Python date object
+            new_gc_meeting_held_date = datetime.strptime(gc_meeting_held_date, '%Y-%m-%d').date()
             project.gc_meeting_held_date = new_gc_meeting_held_date
-        db.session.commit()
-        log_action(current_user, f"Updates GC Meeting Held Date '{project.title}'")
-        return jsonify({'success': True, 'gc_meeting_held_date': new_gc_meeting_held_date})
+            db.session.commit()
+            log_action(current_user, f"Updated GC Meeting Held Date for '{project.title}'")
+            return jsonify({'success': True, 'gc_meeting_held_date': str(new_gc_meeting_held_date)})
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
     return jsonify({'success': False, 'message': 'GC Meeting Held Date cannot be empty.'}), 400
 
 
@@ -1677,10 +1705,17 @@ def create_user():
         role = request.form['role']
         pi_name = request.form.get('pi_name') if role == 'manager' else None
 
+        # Check if username already exists
         if User.query.filter_by(username=username).first():
             flash("Username already exists.", "danger")
             return redirect(url_for('create_user'))
 
+        # Server-side password validation
+        if len(password) < 8 or not any(char.isdigit() for char in password) or not any(char.isupper() for char in password) or not any(char.islower() for char in password) or not any(char in "@$!%*?&" for char in password):
+            flash("Password must be at least 8 characters long and include at least one number, one uppercase letter, one lowercase letter, and one special character (@, $, !, %, *, ?, &).", "danger")
+            return redirect(url_for('create_user'))
+
+        # Hash the password and create the user
         hashed_password = generate_password_hash(password)
         user = User(username=username, password=hashed_password, role=role, pi_name=pi_name)
         db.session.add(user)
@@ -1710,8 +1745,12 @@ def modify_user():
             flash("User not found.", "danger")
             return redirect(url_for('modify_user'))
 
-        # Update the password only if a new password is provided
+        # Validate the new password if provided
         if new_password:
+            if len(new_password) < 8 or not any(char.isdigit() for char in new_password) or not any(char.isupper() for char in new_password) or not any(char.islower() for char in new_password) or not any(char in "@$!%*?&" for char in new_password):
+                flash("Password must be at least 8 characters long and include at least one number, one uppercase letter, one lowercase letter, and one special character (@, $, !, %, *, ?, &).", "danger")
+                return redirect(url_for('modify_user'))
+
             user.password = generate_password_hash(new_password)
 
         # Update the role and PI name

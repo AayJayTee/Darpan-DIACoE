@@ -446,24 +446,24 @@
 
       // RAB Meeting Held Date
       document.querySelectorAll('.rab_meeting_held_date-form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const projectId = this.dataset.projectId;
-          const rab_meeting_held_date = this.rab_meeting_held_date.value;
-          fetch(`/post_rab_meeting_held_date/${projectId}`, {
-            method: 'POST',
-            headers: {'X-Requested-With': 'XMLHttpRequest'},
-            body: new URLSearchParams({rab_meeting_held_date})
-          })
-          .then(res => res.json())
-          .then(data => {
-            if(data.success) {
-              alert('RAB Meeting Held Date updated!');
-            } else {
-              alert(data.message);
-            }
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const projectId = this.dataset.projectId;
+              const rab_meeting_held_date = this.querySelector('[name="rab_meeting_held_date"]').value; // Correct field access
+              fetch(`/post_rab_meeting_held_date/${projectId}`, {
+                  method: 'POST',
+                  headers: {'X-Requested-With': 'XMLHttpRequest'},
+                  body: new URLSearchParams({rab_meeting_held_date})
+              })
+              .then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      alert('RAB Meeting Held Date updated!');
+                  } else {
+                      alert(data.message);
+                  }
+              });
           });
-        });
       });
 
       // RAB Minutes of Meeting
@@ -490,46 +490,46 @@
 
       // GC Meeting Scheduled Date
       document.querySelectorAll('.gc_meeting_scheduled_date-form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const projectId = this.dataset.projectId;
-          const gc_meeting_date = this.gc_meeting_date.value;
-          fetch(`/post_gc_meeting_scheduled_date/${projectId}`, {
-            method: 'POST',
-            headers: {'X-Requested-With': 'XMLHttpRequest'},
-            body: new URLSearchParams({gc_meeting_date})
-          })
-          .then(res => res.json())
-          .then(data => {
-            if(data.success) {
-              alert('GC Meeting Scheduled Date updated!');
-            } else {
-              alert(data.message);
-            }
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const projectId = this.dataset.projectId;
+              const gc_meeting_date = this.querySelector('[name="gc_meeting_date"]').value; // Correct field access
+              fetch(`/post_gc_meeting_scheduled_date/${projectId}`, {
+                  method: 'POST',
+                  headers: {'X-Requested-With': 'XMLHttpRequest'},
+                  body: new URLSearchParams({gc_meeting_date})
+              })
+              .then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      alert('GC Meeting Scheduled Date updated!');
+                  } else {
+                      alert(data.message);
+                  }
+              });
           });
-        });
       });
 
       // GC Meeting Held Date
       document.querySelectorAll('.gc_meeting_held_date-form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const projectId = this.dataset.projectId;
-          const gc_meeting_held_date = this.gc_meeting_held_date.value;
-          fetch(`/post_gc_meeting_held_date/${projectId}`, {
-            method: 'POST',
-            headers: {'X-Requested-With': 'XMLHttpRequest'},
-            body: new URLSearchParams({gc_meeting_held_date})
-          })
-          .then(res => res.json())
-          .then(data => {
-            if(data.success) {
-              alert('GC Meeting Held Date updated!');
-            } else {
-              alert(data.message);
-            }
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const projectId = this.dataset.projectId;
+              const gc_meeting_held_date = this.querySelector('[name="gc_meeting_held_date"]').value; // Correct field access
+              fetch(`/post_gc_meeting_held_date/${projectId}`, {
+                  method: 'POST',
+                  headers: {'X-Requested-With': 'XMLHttpRequest'},
+                  body: new URLSearchParams({gc_meeting_held_date})
+              })
+              .then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      alert('GC Meeting Held Date updated!');
+                  } else {
+                      alert(data.message);
+                  }
+              });
           });
-        });
       });
 
       // GC Minutes of Meeting
