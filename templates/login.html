@@ -5,22 +5,23 @@
 {% block head %}
 <style>
   body {
-    background: linear-gradient(135deg, #02044b 0%, #2575fc 100%);
+    background: #DDEBFA;
+    min-height: 100vh;
   }
   .login-card {
-    background: #fff;
+    background: #FFFFFF;
     border-radius: 1.2rem;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
     animation: fadeIn 0.6s ease-in-out;
-    
   }
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(30px); }
     to { opacity: 1; transform: translateY(0); }
   }
   .navbar {
-    background-color: #1b3478;
+    background: linear-gradient(90deg, #052155, #103067);
     box-shadow: 0 2px 4px rgba(241, 246, 253, 0.1);
+    font-size: 1rem;
   }
   .navbar-brand img {
     height: 40px;
@@ -32,13 +33,14 @@
 <nav class="navbar navbar-light">
   <div class="container-fluid">
     <a class="navbar-brand" href="#">
-      <img src="{{ url_for('static', filename='drdo_logo_0.png') }}" alt="DRDO Logo" style="height: 70px; margin-left: 80px;">
+      <img src="{{ url_for('static', filename='drdo_logo_0.png') }}" alt="DRDO Logo" style="height: 60px; margin-left: 100px;">
     </a>
-    <p style="font-size: 1.5rem; margin-top: 10px; margin-right: 80px; color: #f9f5f5; font-weight: bold;">DIA-CoE DARPAN Portal</p>
+    <p style="font-size: 1.5rem; margin-top: 10px; margin-right: 110px; color: #ffffff; font-weight: bold;">DIA-CoE DARPAN Portal</p>
   </div>
 </nav>
-<div class="d-flex justify-content-center align-items-center" style="min-height: 100vh;">
-  <div class="card login-card p-4" style="width: 100%; max-width: 500px;">
+<br>
+<div class="d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+  <div class="card login-card p-4" style="width: 100%; max-width: 450px;">
     <div class="card-body">
       <div class="text-center mb-4">
         <img src="{{ url_for('static', filename='login-icons.png') }}" alt="Login Icon" width="64" class="mb-2">
@@ -65,14 +67,34 @@
           <label for="username" class="form-label">Username</label>
           {{ form.username(class="form-control", id="username", placeholder="Enter username") }}
         </div>
-        <div class="mb-3">
-          <label for="password" class="form-label">Password</label>
-          {{ form.password(class="form-control", id="password", placeholder="Enter password") }}
+        <div class="mb-3 position-relative">
+            <label for="password" class="form-label">Password</label>
+            <div style="position: relative;">
+                <input type="password" placeholder="Enter password" id="password" name="password" class="form-control" required>
+                <i id="togglePassword" class="fa-solid fa-eye-slash" style="cursor: pointer; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 1.2rem;"></i>
+            </div>
         </div>
         <div class="d-grid">
           <button type="submit" class="btn btn-primary">Login</button>
         </div>
       </form>
+
+      <script>
+        document.getElementById('togglePassword').addEventListener('click', function () {
+            const passwordField = document.getElementById('password');
+            const toggleIcon = document.getElementById('togglePassword');
+            
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye'); // Change icon to "show"
+            } else {
+                passwordField.type = 'password';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash'); // Change icon to "hide"
+            }
+        });
+      </script>
 
       <div class="text-center mt-3">
         <small class="text-muted">Having trouble? <a href="https://www.drdo.gov.in/drdo/labs-and-establishments/solid-state-physics-laboratory-sspl" target="_blank">Contact support</a></small>

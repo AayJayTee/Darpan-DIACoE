@@ -1,16 +1,47 @@
 {% extends "base.html" %}
 {% block content %}
-<div>
-  <h2 class="mb-3" style="color: #000000;">Notices/Forms</h2>
-</div>
-<ul>
-  {% for form in forms %}
-    <li>
-      <a href="{{ url_for('serve_form', filename=form.filename) }}" target="_blank">{{ form.title }}</a>
-    </li>
-  {% endfor %}
-</ul>
 
+<style>
+    .form-no-col { width: 130px; }
+    .title-col { width: 320px; }
+    .schedule-col { width: 320px; }
+    .table thead th {
+      position: sticky;
+      top: 0;
+      background: #e3f2fd;
+      z-index: 2;
+    }
+</style>
+
+<style>
+    table.forms-table { border-collapse: collapse; width: 100%; }
+    table.forms-table th, table.forms-table td { border: 1px solid #0074b8; padding: 10px; }
+    table.forms-table th { background: #0074b8; color: #fff; }
+    .main-form-title { font-weight: bold; color: #0074b8; text-decoration: underline; }
+    .sub-form-title { color: #0074b8; }
+</style>
+
+<h2>Forms</h2>
+<table class="table table-bordered table-striped">
+    <thead class="table-primary">
+        <tr>
+            <th class="form-no-col">Form No</th>
+            <th class="title-col">Title</th>
+            <th class="schedule-col">Submission Schedule<br>(Mandatory Requirements)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for form in forms %}
+            <tr>
+                <td class="form-no-col">{{ form.form_no }}</td>
+                <td class="title-col">
+                    <a href="{{ url_for('serve_form', filename=form.filename) }}" class="main-form-title" target="_blank">{{ form.title }}</a>
+                </td>
+                <td class="schedule-col">{{ form.submission_schedule|replace('\n', '<br>')|safe }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% if current_user.role == 'admin' %}
   <a href="{{ url_for('upload_form') }}" class="btn btn-primary mb-3">Add New Form</a>
   <hr>
@@ -21,12 +52,14 @@
       <select class="form-select" id="form_id" name="form_id" required>
         <option value="" disabled selected>Select a form</option>
         {% for form in forms %}
-          <option value="{{ form.id }}">{{ form.title }}</option>
+            <option value="{{ form.id }}">{{ form.form_no }}</option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit" name="action" value="edit" class="btn btn-warning">Edit Form</button>
-    <button type="submit" name="action" value="delete" class="btn btn-danger" onclick="return confirm('Delete this form?')">Delete Form</button>
+    <div class="mb-4 d-flex align-items-center flex-wrap gap-3">
+        <button type="submit" name="action" value="edit" class="btn btn-warning mb-3">Edit Form</button>
+        <button type="submit" name="action" value="delete" class="btn btn-danger mb-3" onclick="return confirm('Delete this form?')">Delete Form</button>
+    </div>
   </form>
 {% endif %}
 {% endblock %}

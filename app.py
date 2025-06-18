@@ -1,10 +1,10 @@
 #Import necessary libraries
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_from_directory
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_from_directory, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Project, Log
-from forms import LoginForm, ProjectForm
+from forms import LoginForm, ProjectForm, UploadForm, ModifyUserForm
 import datetime
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -48,7 +48,9 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 class NoticeForm(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    form_no = db.Column(db.String(50), nullable=False)
     title = db.Column(db.String(255), nullable=False)
+    submission_schedule = db.Column(db.Text, nullable=True)
     filename = db.Column(db.String(255), nullable=False)
 
 def save_pdf(file):
@@ -114,6 +116,16 @@ def ajax_search_projects():
 @login_required
 def dashboard():
     query = Project.query
+
+    # Role-based filtering
+    if current_user.role == 'manager':
+        # Restrict projects to those with the manager's PI name
+        query = query.filter_by(pi_name=current_user.pi_name)
+    elif current_user.role == 'viewer':
+        # Example: Restrict viewers to only active projects (optional logic)
+        query = query.filter(Project.administrative_status != 'Completed')
+
+    # Apply additional filters (if any)
     column = request.args.get('column', '')
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
@@ -198,7 +210,6 @@ def dashboard():
         approaching_rab=approaching_rab,
         approaching_gc=approaching_gc
     )
-
 
 @app.route('/home')
 @login_required
@@ -582,6 +593,9 @@ def get_analytics_data(projects):
 @app.route('/visualization')
 @login_required
 def visualization():
+    if current_user.role == 'manager':
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('dashboard'))
     projects = Project.query.all()
     analytics = get_analytics_data(projects)
     return render_template('visualization.html', filtered=False, **analytics)
@@ -591,6 +605,8 @@ def visualization():
 @login_required
 def filtered_analytics():
     query = Project.query
+    if current_user.role == 'manager':
+        query = query.filter_by(pi_name=current_user.pi_name)
     column = request.args.get('column', '')
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
@@ -733,23 +749,11 @@ def uploaded_file(filename):
 @app.route('/upload_form', methods=['GET', 'POST'])
 @login_required
 def upload_form():
-    if current_user.role != 'admin':
-        return "Unauthorized", 403
-    if request.method == 'POST':
-        title = request.form['title']
-        file = request.files['pdf']
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            new_form = NoticeForm(title=title, filename=filename)
-            db.session.add(new_form)
-            db.session.commit()
-            flash('Form uploaded successfully!', 'success')
-            return redirect(url_for('notices'))
-        else:
-            flash('Invalid file type.', 'danger')
-    return render_template('upload_form.html')
+    form = UploadForm()  # or whatever your form class is called
+    if form.validate_on_submit():
+        # handle form submission
+        pass
+    return render_template('upload_form.html', form=form)
 
 @app.route('/manage_form_action', methods=['POST'])
 @login_required
@@ -781,27 +785,15 @@ def manage_form_action():
 @app.route('/edit_form/<int:form_id>', methods=['GET', 'POST'])
 @login_required
 def edit_form(form_id):
-    if current_user.role != 'admin':
-        return "Unauthorized", 403
-    form_obj = NoticeForm.query.get_or_404(form_id)
+    form = NoticeForm.query.get_or_404(form_id)
     if request.method == 'POST':
-        new_title = request.form['title']
-        file = request.files.get('pdf')
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            # Optionally delete old file
-            try:
-                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], form_obj.filename))
-            except Exception:
-                pass
-            form_obj.filename = filename
-        form_obj.title = new_title
+        form.form_no = request.form['form_no']
+        form.title = request.form['title']
+        form.submission_schedule = request.form['submission_schedule']
         db.session.commit()
         flash('Form updated successfully!', 'success')
         return redirect(url_for('notices'))
-    return render_template('edit_form.html', form_obj=form_obj)
+    return render_template('edit_form.html', form=form)
 
 @app.route('/delete_form/<int:form_id>', methods=['POST'])
 @login_required
@@ -1173,15 +1165,15 @@ def download_csv():
     output = StringIO()
     writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
 
-    # Header row
+    # Header row (same as filtered, no minutes columns)
     writer.writerow([
         "S. No", "Nomenclature", "Academia/Institute", "PI Name", "Coordinating Lab",
         "Coordinating Lab Scientist", "Research Vertical", "Sanctioned Cost (in Lakhs)",
         "Sanctioned Date", "Original PDC", "Revised PDC", "Stake Holding Labs",
         "Scope/Objective of the Project", "Expected Deliverables/Technology",
         "Outcome Dovetailing with Ongoing Work", "RAB Meeting Scheduled Date",
-        "RAB Meeting Held Date", "RAB Minutes of Meeting", "GC Meeting Scheduled Date",
-        "GC Meeting Held Date", "GC Minutes of Meeting", "Technical Status",
+        "RAB Meeting Held Date", "GC Meeting Scheduled Date",
+        "GC Meeting Held Date", "Technical Status",
         "Administrative Status", "Final Closure Status"
     ])
 
@@ -1204,10 +1196,8 @@ def download_csv():
             project.Outcome_Dovetailing_with_Ongoing_Work or '',
             project.rab_meeting_date or '',
             project.rab_meeting_held_date or '',
-            project.rab_minutes or '',
             project.gc_meeting_date or '',
             project.gc_meeting_held_date or '',
-            project.gc_minutes or '',
             (project.technical_status or '').replace('\n', ' | '),
             project.administrative_status or '',
             (str(project.final_closure_date) if project.final_closure_date else '') +
@@ -1217,6 +1207,121 @@ def download_csv():
     output.seek(0)
     current_date = datetime.now().strftime("%Y-%m-%d")
     filename = f"DIA_CoE_{current_date}.csv"
+    response = app.response_class(
+        response=output.getvalue(),
+        status=200,
+        mimetype='text/csv'
+    )
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    return response
+
+# Route for the download filtered CSV
+@app.route('/download_filtered_csv', methods=['GET'])
+@login_required
+def download_filtered_csv():
+    query = Project.query
+    if current_user.role == 'manager':
+        query = query.filter_by(pi_name=current_user.pi_name)
+    column = request.args.get('column', '')
+    value = request.args.get('value', '').strip()
+    cost_min = request.args.get('cost_min', '').strip()
+    cost_max = request.args.get('cost_max', '').strip()
+    sanction_year_start = request.args.get('sanction_year_start', '').strip()
+    sanction_year_end = request.args.get('sanction_year_end', '').strip()
+
+    if column and (
+        value or 
+        (column == 'cost_lakhs' and (cost_min or cost_max)) or
+        (column == 'sanction_year' and (sanction_year_start or sanction_year_end))
+    ):
+        if column == 'serial_no':
+            query = query.filter(Project.serial_no.ilike(f"%{value}%"))
+        elif column == 'title':
+            query = query.filter(Project.title.ilike(f"%{value}%"))
+        elif column == 'vertical':
+            query = query.filter(Project.vertical.ilike(f"%{value}%"))
+        elif column == 'academia':
+            query = query.filter(Project.academia.ilike(f"%{value}%"))
+        elif column == 'pi_name':
+            query = query.filter(Project.pi_name.ilike(f"%{value}%"))
+        elif column == 'coord_lab':
+            query = query.filter(Project.coord_lab.ilike(f"%{value}%"))
+        elif column == 'scientist':
+            query = query.filter(Project.scientist.ilike(f"%{value}%"))
+        elif column == 'cost_lakhs':
+            try:
+                if cost_min:
+                    query = query.filter(Project.cost_lakhs >= float(cost_min))
+                if cost_max:
+                    query = query.filter(Project.cost_lakhs <= float(cost_max))
+            except ValueError:
+                pass
+        elif column in ['sanctioned_date', 'original_pdc', 'revised_pdc']:
+            try:
+                date_value = datetime.strptime(value, "%Y-%m-%d").date()
+                query = query.filter(getattr(Project, column) == date_value)
+            except ValueError:
+                pass
+        elif column == 'administrative_status':
+            query = query.filter(Project.administrative_status.ilike(f"%{value}%"))
+        elif column == 'sanction_year':
+            try:
+                if sanction_year_start:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) >= int(sanction_year_start))
+                if sanction_year_end:
+                    query = query.filter(db.extract('year', Project.sanctioned_date) <= int(sanction_year_end))
+                if not (sanction_year_start or sanction_year_end) and value:
+                    year = int(value)
+                    query = query.filter(db.extract('year', Project.sanctioned_date) == year)
+            except ValueError:
+                pass
+
+    projects = query.order_by(db.cast(Project.serial_no, db.Integer)).all()
+    output = StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+
+    # Header row (same as original, no minutes columns)
+    writer.writerow([
+        "S. No", "Nomenclature", "Academia/Institute", "PI Name", "Coordinating Lab",
+        "Coordinating Lab Scientist", "Research Vertical", "Sanctioned Cost (in Lakhs)",
+        "Sanctioned Date", "Original PDC", "Revised PDC", "Stake Holding Labs",
+        "Scope/Objective of the Project", "Expected Deliverables/Technology",
+        "Outcome Dovetailing with Ongoing Work", "RAB Meeting Scheduled Date",
+        "RAB Meeting Held Date", "GC Meeting Scheduled Date",
+        "GC Meeting Held Date", "Technical Status",
+        "Administrative Status", "Final Closure Status"
+    ])
+
+    for project in projects:
+        writer.writerow([
+            project.serial_no,
+            project.title or '',
+            project.academia or '',
+            project.pi_name or '',
+            project.coord_lab or '',
+            project.scientist or '',
+            project.vertical or '',
+            project.cost_lakhs or '',
+            project.sanctioned_date or '',
+            project.original_pdc or '',
+            project.revised_pdc or '',
+            project.stakeholders or '',
+            project.scope_objective or '',
+            project.expected_deliverables or '',
+            project.Outcome_Dovetailing_with_Ongoing_Work or '',
+            project.rab_meeting_date or '',
+            project.rab_meeting_held_date or '',
+            project.gc_meeting_date or '',
+            project.gc_meeting_held_date or '',
+            (project.technical_status or '').replace('\n', ' | '),
+            project.administrative_status or '',
+            (str(project.final_closure_date) if project.final_closure_date else '') +
+            (" | " + project.final_closure_remarks if project.final_closure_remarks else "")
+        ])
+
+    output.seek(0)
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    filename = f"DIA_CoE_filtered_{current_date}.csv"
     response = app.response_class(
         response=output.getvalue(),
         status=200,
@@ -1357,6 +1462,8 @@ def download_pdf():
 @login_required
 def download_filtered_pdf():
     query = Project.query
+    if current_user.role == 'manager':
+        query = query.filter_by(pi_name=current_user.pi_name)
     column = request.args.get('column', '')
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
@@ -1515,7 +1622,7 @@ def download_filtered_pdf():
 @app.route('/notices')
 @login_required
 def notices():
-    forms = NoticeForm.query.all()
+    forms = NoticeForm.query.order_by(NoticeForm.form_no).all()
     return render_template('notices.html', forms=forms)
 
 # Route for the view logs page(Admin only)
@@ -1547,5 +1654,196 @@ with app.app_context():
         db.session.add_all([admin_user, viewer_user])
         db.session.commit()
 
+
+
+@app.route('/manage_users')
+@login_required
+def manage_users():
+    if current_user.role != 'admin':
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('dashboard'))
+    users = User.query.all()
+    return render_template('manage_users.html', users=users)
+
+@app.route('/create_user', methods=['GET', 'POST'])
+@login_required
+def create_user():
+    if current_user.role != 'admin':
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        role = request.form['role']
+        pi_name = request.form.get('pi_name') if role == 'manager' else None
+
+        if User.query.filter_by(username=username).first():
+            flash("Username already exists.", "danger")
+            return redirect(url_for('create_user'))
+
+        hashed_password = generate_password_hash(password)
+        user = User(username=username, password=hashed_password, role=role, pi_name=pi_name)
+        db.session.add(user)
+        db.session.commit()
+        flash("User created successfully.", "success")
+        return redirect(url_for('manage_users'))
+    return render_template('create_user.html')
+
+@app.route('/modify_user', methods=['GET', 'POST'])
+@login_required
+def modify_user():
+    if current_user.role != 'admin':  # Restrict access to admins
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('dashboard'))
+
+    users = User.query.all()  # Fetch all users to populate the dropdown
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        new_password = request.form.get('password')
+        new_role = request.form.get('role')
+        pi_name = request.form.get('pi_name', '')
+
+        # Fetch the user from the database
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for('modify_user'))
+
+        # Update the password only if a new password is provided
+        if new_password:
+            user.password = generate_password_hash(new_password)
+
+        # Update the role and PI name
+        user.role = new_role
+        if new_role == 'manager':
+            user.pi_name = pi_name
+        else:
+            user.pi_name = None
+
+        # Commit the changes to the database
+        db.session.commit()
+        flash(f"User '{username}' has been updated successfully.", "success")
+        return redirect(url_for('manage_users'))
+
+    # Render the modify_user.html page on GET
+    return render_template('modify_user.html', users=users)
+
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.role != 'admin':  # Restrict access to admins
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('manage_users'))
+
+    user = User.query.get_or_404(user_id)
+
+    # Prevent deletion of the currently logged-in admin
+    if user.id == current_user.id:
+        flash("You cannot delete your own account.", "danger")
+        return redirect(url_for('manage_users'))
+
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"User '{user.username}' has been deleted successfully.", "success")
+    return redirect(url_for('manage_users'))
+
+@app.route('/change_role/<int:user_id>', methods=['POST'])
+@login_required
+def change_role(user_id):
+    if current_user.role != 'admin':  # Restrict access to admins
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('manage_users'))
+
+    user = User.query.get_or_404(user_id)
+    new_role = request.form.get('role')
+
+    if new_role not in ['admin', 'viewer']:
+        flash("Invalid role selected.", "danger")
+        return redirect(url_for('manage_users'))
+
+    user.role = new_role
+    db.session.commit()
+    flash(f"Role for user '{user.username}' updated to '{new_role}'.", "success")
+    return redirect(url_for('manage_users'))
+
+
+@app.route('/change_password/<int:user_id>', methods=['POST'])
+@login_required
+def change_password(user_id):
+    if current_user.role != 'admin':  # Restrict access to admins
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('manage_users'))
+
+    user = User.query.get_or_404(user_id)
+    new_password = request.form.get('password')
+
+    # Validate password
+    if len(new_password) < 8 or not any(char.isdigit() for char in new_password) or not any(char.isupper() for char in new_password) or not any(char.islower() for char in new_password):
+        flash("Password must be at least 8 characters long and include at least one number, one uppercase letter, and one lowercase letter.", "danger")
+        return redirect(url_for('manage_users'))
+
+    user.password = generate_password_hash(new_password)
+    db.session.commit()
+    flash(f"Password for user '{user.username}' updated successfully.", "success")
+    return redirect(url_for('manage_users'))
+
+
+@app.route('/view_all_users', methods=['GET'])
+@login_required
+def view_all_users():
+    if current_user.role != 'admin':  # Restrict access to admins
+        flash("Unauthorized access.", "danger")
+        return redirect(url_for('dashboard'))
+
+    users = User.query.all()
+    return render_template('view_all_users.html', users=users)
+
+
+@app.route('/projects', methods=['GET'])
+@login_required
+def view_projects():
+    if current_user.role == 'manager':
+        # Restrict projects to those with the manager's PI name
+        projects = Project.query.filter_by(pi_name=current_user.pi_name).all()
+    else:
+        # Admins and viewers can see all projects
+        projects = Project.query.all()
+
+    return render_template('projects.html', projects=projects)
+
+
+@app.route('/change_password', methods=['GET', 'POST'])
+@login_required
+def change_own_password():
+    if request.method == 'POST':
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+
+        # Validate current password
+        if not check_password_hash(current_user.password, current_password):
+            flash("Current password is incorrect.", "danger")
+            return redirect(url_for('change_own_password'))
+
+        # Validate new password
+        if new_password != confirm_password:
+            flash("New password and confirmation do not match.", "danger")
+            return redirect(url_for('change_own_password'))
+
+        if len(new_password) < 8 or not any(char.isdigit() for char in new_password) or not any(char.isupper() for char in new_password) or not any(char.islower() for char in new_password):
+            flash("Password must be at least 8 characters long and include at least one number, one uppercase letter, and one lowercase letter.", "danger")
+            return redirect(url_for('change_own_password'))
+
+        # Update password
+        current_user.password = generate_password_hash(new_password)
+        db.session.commit()
+        flash("Password updated successfully.", "success")
+        return redirect(url_for('dashboard'))
+
+    return render_template('change_password.html')
+
+    
 if __name__ == '__main__':
     app.run(debug=True)

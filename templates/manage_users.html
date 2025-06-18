@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="text-center my-3">Manage Users</h2>
+<p class="text-center text-muted mb-4">Easily create, modify, and view users in the system.</p>
+
+<style>
+    #defaultPage {
+        max-width: 800px;
+        margin: 60px auto 0 auto;
+    }
+    .table {
+        margin-top: 20px;
+    }
+    .btn {
+        padding: 5px 10px;
+    }
+</style>
+
+<div id="defaultPage" class="card shadow p-4">
+    <h3 class="mb-4 text-center">User Management</h3>
+    <div class="d-grid gap-3 mb-4">
+        <a class="btn btn-success" href="{{ url_for('create_user') }}">Create User</a>
+        <a class="btn btn-primary" href="{{ url_for('modify_user') }}">Modify User</a>
+        <a class="btn btn-warning" href="{{ url_for('view_all_users') }}">View All Users</a>
+    </div>    
+</div>
+{% endblock %}

@@ -2,7 +2,7 @@
 from flask_wtf import FlaskForm
 from wtforms import IntegerField, StringField, PasswordField, SubmitField, FloatField, DateField, SelectField, TextAreaField
 from wtforms.validators import DataRequired, Length, ValidationError, Optional
-from flask_wtf.file import FileField, FileAllowed
+from flask_wtf.file import FileField, FileAllowed, FileRequired
 from wtforms.fields import MultipleFileField 
 
 
@@ -52,3 +52,17 @@ class ProjectForm(FlaskForm):
     def validate_revised_pdc(self, field):
         if self.original_pdc.data and field.data < self.original_pdc.data:
             raise ValidationError("Revised PDC cannot be before the Original PDC.")
+
+class UploadForm(FlaskForm):
+    form_no = StringField('Form No', validators=[DataRequired()])
+    title = StringField('Title', validators=[DataRequired()])
+    submission_schedule = TextAreaField('Submission Schedule (Mandatory Requirements)', validators=[DataRequired()])
+    file = FileField('PDF File', validators=[FileRequired(), FileAllowed(['pdf'], 'PDFs only!')])
+    submit = SubmitField('Upload')
+
+class ModifyUserForm(FlaskForm):
+    username = SelectField('Select User', validators=[DataRequired()], coerce=str)
+    password = PasswordField('New Password (leave blank to keep unchanged)', validators=[Optional(), Length(min=8)])
+    role = SelectField('Role', choices=[('admin', 'Admin'), ('viewer', 'Viewer'), ('manager', 'Manager')], validators=[DataRequired()])
+    pi_name = StringField('PI Name (for Manager)', validators=[Optional()])
+    submit = SubmitField('Update User')
