@@ -1,17 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Edit Form</h2>
-<form method="post" enctype="multipart/form-data">
+<form method="post">
   <div class="mb-3">
-    <label for="title" class="form-label">Form Name</label>
-    <input type="text" class="form-control" id="title" name="title" value="{{ form_obj.title }}" required>
+    <label for="form_no" class="form-label">Form No</label>
+    <input type="text" class="form-control" id="form_no" name="form_no" value="{{ form.form_no }}" required>
   </div>
   <div class="mb-3">
-    <label for="pdf" class="form-label">Replace PDF (optional)</label>
-    <input type="file" class="form-control" id="pdf" name="pdf" accept="application/pdf">
-    <small>Current file: {{ form_obj.filename }}</small>
+    <label for="title" class="form-label">Title</label>
+    <input type="text" class="form-control" id="title" name="title" value="{{ form.title }}" required>
   </div>
-  <button type="submit" class="btn btn-primary">Save Changes</button>
-  <a href="{{ url_for('notices') }}" class="btn btn-secondary">Cancel</a>
+  <div class="mb-3">
+    <label for="submission_schedule" class="form-label">Submission Schedule (Mandatory Requirements)</label>
+    <textarea id="submission_schedule" name="submission_schedule" rows="4" class="form-control" required>{{ form.submission_schedule }}</textarea>
+  </div>
+  <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 1rem;">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="{{ url_for('notices') }}" class="btn btn-secondary">Cancel</a>
+  </div>
 </form>
 {% endblock %}

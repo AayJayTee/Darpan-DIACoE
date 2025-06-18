@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-center my-4">Projects</h1>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Serial No</th>
+            <th>Title</th>
+            <th>Academia</th>
+            <th>PI Name</th>
+            <th>Coord Lab</th>
+            <th>Scientist</th>
+            <th>Vertical</th>
+            <th>Cost (Lakhs)</th>
+            <th>Sanctioned Date</th>
+            <th>Original PDC</th>
+            <th>Revised PDC</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for project in projects %}
+        <tr>
+            <td>{{ project.serial_no }}</td>
+            <td>{{ project.title }}</td>
+            <td>{{ project.academia }}</td>
+            <td>{{ project.pi_name }}</td>
+            <td>{{ project.coord_lab }}</td>
+            <td>{{ project.scientist }}</td>
+            <td>{{ project.vertical }}</td>
+            <td>{{ project.cost_lakhs }}</td>
+            <td>{{ project.sanctioned_date }}</td>
+            <td>{{ project.original_pdc }}</td>
+            <td>{{ project.revised_pdc }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

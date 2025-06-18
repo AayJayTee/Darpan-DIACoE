@@ -4,7 +4,7 @@ from flask_login import UserMixin
 from sqlalchemy.orm import validates
 from datetime import datetime
 
-# This file contains the database models for the application.
+
 db = SQLAlchemy()
 
 # Define the User(for authentication and role-based access) and Log models
@@ -12,15 +12,16 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(10), default='viewer')
+    role = db.Column(db.String(10), nullable=False) 
+    pi_name = db.Column(db.String(100), nullable=True)  
+    logs = db.relationship('Log', back_populates='user', lazy=True)
 
-# Define the relationship between User and Log (track user actions within the system)
 class Log(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     action = db.Column(db.String(255))
     timestamp = db.Column(db.DateTime, server_default=db.func.now())
-    user = db.relationship('User', backref='logs')
+    user = db.relationship('User', back_populates='logs')
     
 # Define the Project model (for storing project information)
 class Project(db.Model):
