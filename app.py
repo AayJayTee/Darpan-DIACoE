@@ -1,11 +1,15 @@
-#Import necessary libraries
+### Project Management System - Flask Application ###
+
+
+## Imports and Initialization ##
+
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, send_from_directory, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Project, Log
 from forms import LoginForm, ProjectForm, UploadForm, ModifyUserForm
-import datetime
+import datetime as dt
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pytz import timezone
@@ -39,11 +43,11 @@ db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-#Flask-Migrate for database migrations
+# Flask-Migrate for database migrations
 migrate = Migrate(app, db)
 
 UPLOAD_FOLDER = 'static/forms'
-ALLOWED_EXTENSIONS = {'pdf'}
+ALLOWED_EXTENSIONS = {'pdf','doc','docx'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 class NoticeForm(db.Model):
@@ -51,16 +55,23 @@ class NoticeForm(db.Model):
     form_no = db.Column(db.String(50), nullable=False)
     title = db.Column(db.String(255), nullable=False)
     submission_schedule = db.Column(db.Text, nullable=True)
-    filename = db.Column(db.String(255), nullable=False)
+    filename = db.Column(db.String(255), nullable=True)  
+    filenames = db.Column(db.Text, nullable=True)  
+    file_types = db.Column(db.Text, nullable=True)  
 
-def save_pdf(file):
-    if file and file.filename and file.filename.endswith('.pdf'):
-        filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        print(f"Saving file to: {filepath}")  # Debug line
-        file.save(filepath)
-        return filename
-    return None
+def save_files(files):
+    saved_files = []
+    for file in files:
+        if file and file.filename:
+            try:
+                filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                file_type = file.filename.split('.')[-1].lower()
+                saved_files.append((filename, file_type))  
+            except Exception as e:
+                print(f"Error saving file {file.filename}: {e}")
+    return saved_files
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -77,6 +88,13 @@ def log_action(user, action):
     db.session.add(log)
     db.session.commit()
 
+# Rouute for the home page
+@app.route('/home')
+@login_required
+def home():
+    return render_template('main/home.html', user=current_user)
+
+
 # Route for the login page
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -92,10 +110,10 @@ def login():
             flash(f"Welcome, {user.username}!", "success")
             return redirect(url_for('home'))
         flash('Invalid username or password', 'danger')
-    return render_template('login.html', form=form)
+    return render_template('main/login.html', form=form)
+
 
 # Route for the project search
-# AJAX search route for dynamic filtering
 @app.route('/ajax_search_projects')
 @login_required
 def ajax_search_projects():
@@ -110,22 +128,22 @@ def ajax_search_projects():
 
     return render_template('partials/project_table_body.html', projects=projects)
 
+
 # Route for the dashboard
-# Dashboard View - List all projects
 @app.route('/dashboard')
 @login_required
 def dashboard():
     query = Project.query
 
-    # Role-based filtering
+    # Apply role-based filtering
     if current_user.role == 'manager':
         # Restrict projects to those with the manager's PI name
-        query = query.filter_by(pi_name=current_user.pi_name)
+        query = query.filter(Project.scientist.ilike(f"%{current_user.coord_scientist}%"))
     elif current_user.role == 'viewer':
-        # Example: Restrict viewers to only active projects (optional logic)
+        # Restrict viewers to only active projects (optional logic)
         query = query.filter(Project.administrative_status != 'Completed')
 
-    # Apply additional filters (if any)
+    # Apply additional filters 
     column = request.args.get('column', '')
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
@@ -183,26 +201,40 @@ def dashboard():
     today = datetime.today().date()
     soon = today + timedelta(days=30)
 
-    # Approaching PDC deadline (not completed)
-    approaching_pdc = [
-        p for p in projects
-        if p.revised_pdc and today <= p.revised_pdc <= soon and (not p.administrative_status or p.administrative_status.lower() != "completed")
-    ]
-
-    approaching_rab = Project.query.filter(
-        Project.rab_meeting_date != None,
-        Project.rab_meeting_date >= today,
-        Project.rab_meeting_date <= soon
-    ).all()
-
-    approaching_gc = Project.query.filter(
-        Project.gc_meeting_date != None,
-        Project.gc_meeting_date >= today,
-        Project.gc_meeting_date <= soon
-    ).all()
+    if current_user.role == 'manager':
+        # Only show alerts for projects assigned to this manager
+        manager_projects = [p for p in projects if p.scientist == current_user.coord_scientist]
+        approaching_pdc = [
+            p for p in manager_projects
+            if p.revised_pdc and isinstance(p.revised_pdc, dt.date) and today <= p.revised_pdc <= soon
+            and (not p.administrative_status or p.administrative_status.lower() != "completed")
+        ]
+        approaching_rab = [
+            p for p in manager_projects
+            if p.rab_meeting_date and isinstance(p.rab_meeting_date, dt.date) and today <= p.rab_meeting_date <= soon
+        ]
+        approaching_gc = [
+            p for p in manager_projects
+            if p.gc_meeting_date and isinstance(p.gc_meeting_date, dt.date) and today <= p.gc_meeting_date <= soon
+        ]
+    else:
+        # Admin and viewer see all
+        approaching_pdc = [
+            p for p in projects
+            if p.revised_pdc and isinstance(p.revised_pdc, dt.date) and today <= p.revised_pdc <= soon
+            and (not p.administrative_status or p.administrative_status.lower() != "completed")
+        ]
+        approaching_rab = [
+            p for p in projects
+            if p.rab_meeting_date and isinstance(p.rab_meeting_date, dt.date) and today <= p.rab_meeting_date <= soon
+        ]
+        approaching_gc = [
+            p for p in projects
+            if p.gc_meeting_date and isinstance(p.gc_meeting_date, dt.date) and today <= p.gc_meeting_date <= soon
+        ]
 
     return render_template(
-        'dashboard.html',
+        'main/dashboard.html',
         projects=projects,
         user=current_user,
         now=datetime.now(),
@@ -211,12 +243,8 @@ def dashboard():
         approaching_gc=approaching_gc
     )
 
-@app.route('/home')
-@login_required
-def home():
-    return render_template('home.html', user=current_user)
 
-#Helper function to help both /visualization and /filtered_analytics routes 
+# Helper function to help both /visualization and /filtered_analytics routes 
 def get_analytics_data(projects):
     from collections import Counter, defaultdict
     from datetime import datetime
@@ -589,7 +617,7 @@ def get_analytics_data(projects):
         stakeholder_lab_values=stakeholder_lab_values,
     )
 
-#For the Data Analytics Page
+# Route for the Data Analytics Page
 @app.route('/visualization')
 @login_required
 def visualization():
@@ -598,15 +626,16 @@ def visualization():
         return redirect(url_for('dashboard'))
     projects = Project.query.all()
     analytics = get_analytics_data(projects)
-    return render_template('visualization.html', filtered=False, **analytics)
+    return render_template('main/visualization.html', filtered=False, **analytics)
 
-#For filtered data analytics
+
+#Route for filtered data analytics
 @app.route('/filtered_analytics')
 @login_required
 def filtered_analytics():
     query = Project.query
     if current_user.role == 'manager':
-        query = query.filter_by(pi_name=current_user.pi_name)
+        query = query.filter(Project.scientist.ilike(f"%{current_user.coord_scientist}%"))
     column = request.args.get('column', '')
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
@@ -673,39 +702,61 @@ def add_project():
 
     form = ProjectForm()
     if form.validate_on_submit():
-        # Date validations
+        
         if form.original_pdc.data < form.sanctioned_date.data:
             flash("Original PDC cannot be before the Sanctioned Date.", "danger")
-            return render_template('add_project.html', form=form)
+            return render_template('projects/add_project.html', form=form)
         if form.revised_pdc.data < form.original_pdc.data:
             flash("Revised PDC cannot be before the Original PDC.","danger")
-            return render_template('add_project.html', form=form)
-        # Unique serial number validation
+            return render_template('projects/add_project.html', form=form)
+        
         existing_project = Project.query.filter_by(serial_no=form.serial_no.data).first()
         if existing_project:
             form.serial_no.errors.append("Project with this serial number already exists")
-            return render_template('add_project.html', form=form)
+            return render_template('projects/add_project.html', form=form)
         
+
+        signed_forms_filenames = []
+        if form.duely_signed_forms.data:
+            for file in form.duely_signed_forms.data:
+                filename = None
+                saved = save_files([file])
+                if saved:
+                    filename = saved[0][0]
+                if filename:
+                    signed_forms_filenames.append(filename)
+
         rab_filenames = []
         if form.rab_minutes.data:
             for file in form.rab_minutes.data:
-                filename = save_pdf(file)
+                filename = None
+                saved = save_files([file])
+                if saved:
+                    filename = saved[0][0]
                 if filename:
                     rab_filenames.append(filename)
+
         gc_filenames = []
         if form.gc_minutes.data:
             for file in form.gc_minutes.data:
-                filename = save_pdf(file)
+                filename = None
+                saved = save_files([file])
+                if saved:
+                    filename = saved[0][0]
                 if filename:
                     gc_filenames.append(filename)
+
         final_report_filenames = []
         if form.final_report.data:
             for file in form.final_report.data:
-                filename = save_pdf(file)
+                filename = None
+                saved = save_files([file])
+                if saved:
+                    filename = saved[0][0]
                 if filename:
                     final_report_filenames.append(filename)
 
-        # Add project
+       
         project = Project(
             serial_no=form.serial_no.data,
             title=form.title.data,
@@ -722,6 +773,7 @@ def add_project():
             scope_objective=form.scope_objective.data,
             expected_deliverables=form.expected_deliverables.data,
             Outcome_Dovetailing_with_Ongoing_Work=form.Outcome_Dovetailing_with_Ongoing_Work.data,
+            duely_signed_forms=','.join(signed_forms_filenames),
             rab_meeting_date=form.rab_meeting_date.data,
             rab_meeting_held_date=form.rab_meeting_held_date.data,
             rab_minutes=','.join(rab_filenames),
@@ -739,41 +791,78 @@ def add_project():
         flash("Project added successfully.", "success")
         return redirect(url_for('dashboard'))
 
-    return render_template('add_project.html', form=form)
+    return render_template('projects/add_project.html', form=form)
 
+# Route for the upload form page
 @app.route('/uploads/<filename>')
 @login_required
 def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    
+    if ' ' in filename:
+        original_name = filename.split(' ', 1)[1]
+    elif filename[:36].count('-') == 4 and filename[36] == '_':
+        original_name = filename[37:]
+    elif '_' in filename:
+        original_name = filename.split('_', 1)[1]
+    else:
+        original_name = filename
 
+    return send_from_directory(
+        app.config['UPLOAD_FOLDER'],
+        filename,
+        as_attachment=True,
+        download_name=original_name
+    )
+
+
+# Route for the upload form page
 @app.route('/upload_form', methods=['GET', 'POST'])
 @login_required
 def upload_form():
-    form = UploadForm()  # Replace with your actual form class
+    form = UploadForm()
     if form.validate_on_submit():
-        # Check if a file is uploaded
-        file = form.file.data  # Assuming the form has a 'file' field
-        if file and allowed_file(file.filename):  # Validate file type
-            # Secure the filename and save the file
-            filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+        files = form.files.data  
+        if not files:
+            flash("No files selected for upload.", "danger")
+            return render_template('forms/upload_form.html', form=form)
 
-            # Save file details to the database (if applicable)
+        
+        saved_files = save_files(files)
+        if not saved_files:
+            flash("Failed to save files. Please try again.", "danger")
+            return render_template('forms/upload_form.html', form=form)
+
+        
+        filenames = ','.join([file[0] for file in saved_files])  
+        file_types = ','.join([file[1] for file in saved_files])  
+
+        
+        filename = saved_files[0][0] if saved_files else None
+
+        try:
+            
             notice_form = NoticeForm(
                 form_no=form.form_no.data,
                 title=form.title.data,
                 submission_schedule=form.submission_schedule.data,
-                filename=filename
+                filename=filename,  
+                filenames=filenames,  
+                file_types=file_types  
             )
             db.session.add(notice_form)
             db.session.commit()
+            log_action(current_user, f"Uploaded form '{form.form_no.data}'")
+            flash('Files uploaded successfully!', 'success')
+            return redirect(url_for('forms'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"An error occurred while saving the form: {e}", "danger")
+            return render_template('forms/upload_form.html', form=form)
 
-            flash('File uploaded successfully!', 'success')
-            return redirect(url_for('notices'))
-        else:
-            flash('Invalid file type. Only PDF files are allowed.', 'danger')
-    return render_template('upload_form.html', form=form)
+    return render_template('forms/upload_form.html', form=form)
+
+
+# Route for listing all forms
 @app.route('/manage_form_action', methods=['POST'])
 @login_required
 def manage_form_action():
@@ -783,11 +872,10 @@ def manage_form_action():
     action = request.form.get('action')
     if not form_id or not action:
         flash("Please select a form and action.", "danger")
-        return redirect(url_for('notices'))
+        return redirect(url_for('forms'))
     if action == "edit":
         return redirect(url_for('edit_form', form_id=form_id))
     elif action == "delete":
-        # Directly delete the form with a JS confirm in the HTML, no confirmation page
         form_obj = NoticeForm.query.get_or_404(form_id)
         try:
             os.remove(os.path.join(app.config['UPLOAD_FOLDER'], form_obj.filename))
@@ -795,25 +883,113 @@ def manage_form_action():
             pass
         db.session.delete(form_obj)
         db.session.commit()
+        log_action(current_user, f"Deleted form '{form_obj.form_no}'")
         flash('Form deleted successfully!', 'success')
-        return redirect(url_for('notices'))
+        return redirect(url_for('forms'))
     else:
         flash("Invalid action.", "danger")
-        return redirect(url_for('notices'))
+        return redirect(url_for('forms'))
 
+
+# Route for listing all forms
 @app.route('/edit_form/<int:form_id>', methods=['GET', 'POST'])
 @login_required
 def edit_form(form_id):
     form = NoticeForm.query.get_or_404(form_id)
+
+    
+    files = []
+    if form.filenames:
+        filenames = form.filenames.split(',')
+        file_types = form.file_types.split(',') if form.file_types else [''] * len(filenames)
+        for idx, filename in enumerate(filenames):
+            files.append({
+                'id': idx,  
+                'filename': filename,
+                'original_name': filename.split('_', 1)[-1],  
+                'file_type': file_types[idx] if idx < len(file_types) else ''
+            })
+
     if request.method == 'POST':
         form.form_no = request.form['form_no']
         form.title = request.form['title']
         form.submission_schedule = request.form['submission_schedule']
-        db.session.commit()
-        flash('Form updated successfully!', 'success')
-        return redirect(url_for('notices'))
-    return render_template('edit_form.html', form=form)
 
+        
+        delete_files = request.form.get('delete_files', '')
+        delete_indices = [int(i) for i in delete_files.split(',') if i.strip().isdigit()]
+        filenames = form.filenames.split(',') if form.filenames else []
+        file_types = form.file_types.split(',') if form.file_types else []
+
+        
+        for idx in sorted(delete_indices, reverse=True):
+            if 0 <= idx < len(filenames):
+                try:
+                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], filenames[idx]))
+                except Exception:
+                    pass
+                del filenames[idx]
+                if idx < len(file_types):
+                    del file_types[idx]
+        form.filenames = ','.join(filenames)
+        form.file_types = ','.join(file_types)
+
+        # Handle new file uploads
+        uploaded_files = request.files.getlist('form_files')
+        saved_files = save_files(uploaded_files)
+        if saved_files:
+            existing_filenames = form.filenames.split(',') if form.filenames else []
+            existing_file_types = form.file_types.split(',') if form.file_types else []
+            for fname, ftype in saved_files:
+                existing_filenames.append(fname)
+                existing_file_types.append(ftype)
+            form.filenames = ','.join(existing_filenames)
+            form.file_types = ','.join(existing_file_types)
+
+        db.session.commit()
+        log_action(current_user, f"Edited form '{form.form_no}'")
+        flash('Form updated successfully!', 'success')
+        return redirect(url_for('forms'))
+
+    return render_template('forms/edit_form.html', form=form, files=files)
+
+
+
+
+# Route for deleting a file from a form
+@app.route('/delete_file', methods=['POST'])
+@login_required
+def delete_file():
+    form_id = request.args.get('form_id', type=int)
+    file_id = request.args.get('file_id', type=int)
+    form = NoticeForm.query.get_or_404(form_id)
+
+    filenames = form.filenames.split(',') if form.filenames else []
+    file_types = form.file_types.split(',') if form.file_types else []
+
+    if 0 <= file_id < len(filenames):
+        # Remove file from disk
+        try:
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], filenames[file_id]))
+        except Exception:
+            pass
+        # Remove from lists
+        del filenames[file_id]
+        if file_id < len(file_types):
+            del file_types[file_id]
+        form.filenames = ','.join(filenames)
+        form.file_types = ','.join(file_types)
+        db.session.commit()
+        log_action(current_user, f"Deleted file from form '{form.form_no}'")
+        flash('File deleted successfully!', 'success')
+    else:
+        flash('File not found.', 'danger')
+
+    return redirect(url_for('edit_form', form_id=form_id))
+
+
+
+# Route for listing all forms
 @app.route('/delete_form/<int:form_id>', methods=['POST'])
 @login_required
 def delete_form(form_id):
@@ -827,14 +1003,33 @@ def delete_form(form_id):
         pass
     db.session.delete(form_obj)
     db.session.commit()
+    log_action(current_user, f"Deleted form '{form_obj.form_no}'")
     flash('Form deleted successfully!', 'success')
-    return redirect(url_for('notices'))
+    return redirect(url_for('forms'))
 
+
+# Route for listing all forms
 @app.route('/forms/<filename>')
 @login_required
 def serve_form(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    # If filename starts with a UUID (36 chars + '_'), strip it, else use as-is
+    if len(filename) > 37 and filename[:36].count('-') == 4 and filename[36] == '_':
+        original_name = filename[37:]
+    else:
+        original_name = filename
 
+    print(f"DEBUG: filename={filename}, original_name={original_name}")
+
+    return send_from_directory(
+        app.config['UPLOAD_FOLDER'],
+        filename,
+        as_attachment=True,
+        download_name=original_name
+    )
+
+
+
+# Route to post technical status updates
 @app.route('/post_technical_status/<int:project_id>', methods=['POST'])
 @login_required
 def post_technical_status(project_id):
@@ -851,10 +1046,14 @@ def post_technical_status(project_id):
         else:
             project.technical_status = new_technical_status
         db.session.commit()
-        log_action(current_user, f"Updates technical status of project '{project.title}'")
+        log_action(current_user, f"Updated technical status of project '{project.title}'")
         return jsonify({'success': True, 'technical_status': new_technical_status})
     return jsonify({'success': False, 'message': 'Technical Status cannot be empty.'}), 400
 
+
+
+
+# Route to post administrative status updates
 @app.route('/post_rab_meeting_scheduled_date/<int:project_id>', methods=['POST'])
 @login_required
 def post_rab_meeting_scheduled_date(project_id):
@@ -867,13 +1066,15 @@ def post_rab_meeting_scheduled_date(project_id):
             # Parse and store as date object
             project.rab_meeting_date = datetime.strptime(rab_meeting_date, "%Y-%m-%d")
             db.session.commit()
-            log_action(current_user, f"Updates RAB Meeting Scheduled Date '{project.title}'")
+            log_action(current_user, f"Updated RAB Meeting Scheduled Date '{project.title}'")
             return jsonify({'success': True, 'rab_meeting_date': rab_meeting_date})
         except ValueError:
             return jsonify({'success': False, 'message': 'Invalid date format.'}), 400
     return jsonify({'success': False, 'message': 'RAB Meeting Scheduled Date cannot be empty.'}), 400
 
 
+
+# Route to post RAB Meeting Held Date
 @app.route('/post_rab_meeting_held_date/<int:project_id>', methods=['POST'])
 @login_required
 def post_rab_meeting_held_date(project_id):
@@ -884,7 +1085,7 @@ def post_rab_meeting_held_date(project_id):
     rab_meeting_held_date = request.form.get('rab_meeting_held_date', '').strip()
     if rab_meeting_held_date:
         try:
-            # Convert string to Python date object
+            
             new_rab_meeting_held_date = datetime.strptime(rab_meeting_held_date, '%Y-%m-%d').date()
             project.rab_meeting_held_date = new_rab_meeting_held_date
             db.session.commit()
@@ -895,6 +1096,9 @@ def post_rab_meeting_held_date(project_id):
 
     return jsonify({'success': False, 'message': 'RAB Meeting Held Date cannot be empty.'}), 400
 
+
+
+# Route to post RAB Minutes of Meeting
 @app.route('/post_rab_minutes_of_meeting/<int:project_id>', methods=['POST'])
 @login_required
 def post_rab_minutes_of_meeting(project_id):
@@ -909,11 +1113,13 @@ def post_rab_minutes_of_meeting(project_id):
         else:
             project.rab_minutes = new_rab_minutes
         db.session.commit()
-        log_action(current_user, f"Updates RAB Minutes of Meeting '{project.title}'")
+        log_action(current_user, f"Updated RAB Minutes of Meeting '{project.title}'")
         return jsonify({'success': True, 'rab_minutes': new_rab_minutes})
     return jsonify({'success': False, 'message': 'RAB Minutes of Meeting cannot be empty.'}), 400
 
 
+
+# Route to post GC Meeting Scheduled Date
 @app.route('/post_gc_meeting_scheduled_date/<int:project_id>', methods=['POST'])
 @login_required
 def post_gc_meeting_scheduled_date(project_id):
@@ -937,6 +1143,8 @@ def post_gc_meeting_scheduled_date(project_id):
 
 
 
+
+# Route to post GC Meeting Held Date
 @app.route('/post_gc_meeting_held_date/<int:project_id>', methods=['POST'])
 @login_required
 def post_gc_meeting_held_date(project_id):
@@ -959,6 +1167,8 @@ def post_gc_meeting_held_date(project_id):
     return jsonify({'success': False, 'message': 'GC Meeting Held Date cannot be empty.'}), 400
 
 
+
+# Route to post GC Minutes of Meeting
 @app.route('/post_gc_minutes_of_meeting/<int:project_id>', methods=['POST'])
 @login_required
 def post_gc_minutes_of_meeting(project_id):
@@ -973,9 +1183,11 @@ def post_gc_minutes_of_meeting(project_id):
         else:
             project.gc_minutes = new_gc_minutes
         db.session.commit()
-        log_action(current_user, f"Updates GC Minutes of Meeting '{project.title}'")
+        log_action(current_user, f"Updated GC Minutes of Meeting '{project.title}'")
         return jsonify({'success': True, 'gc_minutes': new_gc_minutes})
     return jsonify({'success': False, 'message': 'GC Minutes of Meeting cannot be empty.'}), 400
+
+
 
 # Route for the modify search page (admin only)
 @app.route('/modify_search', methods=['GET'])
@@ -1032,7 +1244,9 @@ def modify_search():
     else:
         projects = None
 
-    return render_template('modify_search.html', projects=projects)
+    return render_template('projects/modify_search.html', projects=projects)
+
+
 
 # Route for the edit project page (Admin only)
 @app.route('/edit/<int:project_id>', methods=['GET', 'POST'])
@@ -1049,42 +1263,53 @@ def edit_project(project_id):
         # Date validations (same as in add_project)
         if form.original_pdc.data <= form.sanctioned_date.data:
             flash("Original PDC cannot be before or equal to the Sanctioned Date.", "danger")
-            return render_template('edit_project.html', form=form, project=project)
+            return render_template('projects/edit_project.html', form=form, project=project)
         if form.revised_pdc.data < form.original_pdc.data:
             flash("Revised PDC cannot be before the Original PDC.", "danger")
-            return render_template('edit_project.html', form=form, project=project)
+            return render_template('projects/edit_project.html', form=form, project=project)
 
-        # Append new files to existing list
+        # signed_forms
+        duely_signed_forms_filenames = project.duely_signed_forms.split(',') if project.duely_signed_forms else []
+        if form.duely_signed_forms.data:
+            for file in form.duely_signed_forms.data:
+                if hasattr(file, "filename") and file.filename:
+                    saved = save_files([file])
+                    if saved:
+                        duely_signed_forms_filenames.append(saved[0][0])
+        project.duely_signed_forms = ','.join([f for f in duely_signed_forms_filenames if f])
+
+        # rab_minutes
         rab_filenames = project.rab_minutes.split(',') if project.rab_minutes else []
         if form.rab_minutes.data:
             for file in form.rab_minutes.data:
-                # Only save if it's a FileStorage (uploaded file)
                 if hasattr(file, "filename") and file.filename:
-                    filename = save_pdf(file)
-                    if filename:
-                        rab_filenames.append(filename)
+                    saved = save_files([file])
+                    if saved:
+                        rab_filenames.append(saved[0][0])
         project.rab_minutes = ','.join([f for f in rab_filenames if f])
 
+        # gc_minutes
         gc_filenames = project.gc_minutes.split(',') if project.gc_minutes else []
         if form.gc_minutes.data:
             for file in form.gc_minutes.data:
                 if hasattr(file, "filename") and file.filename:
-                    filename = save_pdf(file)
-                    if filename:
-                        gc_filenames.append(filename)
+                    saved = save_files([file])
+                    if saved:
+                        gc_filenames.append(saved[0][0])
         project.gc_minutes = ','.join([f for f in gc_filenames if f])
 
+        # final_report
         final_report_filenames = project.final_report.split(',') if project.final_report else []
         if form.final_report.data:
             for file in form.final_report.data:
                 if hasattr(file, "filename") and file.filename:
-                    filename = save_pdf(file)
-                    if filename:
-                        final_report_filenames.append(filename)
+                    saved = save_files([file])
+                    if saved:
+                        final_report_filenames.append(saved[0][0])
         project.final_report = ','.join([f for f in final_report_filenames if f])
 
         # Update project
-        exclude_fields = ['rab_minutes', 'gc_minutes', 'final_report']
+        exclude_fields = ['duely_signed_forms', 'rab_minutes', 'gc_minutes', 'final_report']
         for field in form:
             if field.name not in exclude_fields and hasattr(project, field.name):
                 setattr(project, field.name, field.data)
@@ -1094,9 +1319,12 @@ def edit_project(project_id):
         flash('Project updated successfully!', 'success')
         return redirect(url_for('dashboard'))
 
-    return render_template('edit_project.html', form=form, project=project)
+    return render_template('projects/edit_project.html', form=form, project=project)
 
 
+
+
+# Route for removing a file from a project (Admin only)
 @app.route('/remove_mom_file/<int:project_id>/<mom_type>/<filename>')
 @login_required
 def remove_mom_file(project_id, mom_type, filename):
@@ -1104,7 +1332,11 @@ def remove_mom_file(project_id, mom_type, filename):
     if current_user.role != 'admin':
         flash("Unauthorized.", "danger")
         return redirect(url_for('dashboard'))
-    if mom_type == 'rab':
+    if mom_type == 'duely_signed_forms':
+        files = project.duely_signed_forms.split(',') if project.duely_signed_forms else []
+        files = [f for f in files if f != filename]
+        project.duely_signed_forms = ','.join(files)
+    elif mom_type == 'rab':
         files = project.rab_minutes.split(',') if project.rab_minutes else []
         files = [f for f in files if f != filename]
         project.rab_minutes = ','.join(files)
@@ -1122,8 +1354,11 @@ def remove_mom_file(project_id, mom_type, filename):
     except Exception:
         pass
     db.session.commit()
+    log_action(current_user, f"Removed {mom_type} file '{filename}' from project '{project.title}'")
     flash("File removed.", "success")
     return redirect(request.referrer or url_for('dashboard'))
+
+
 
 
 # Route for the delete project page (Admin only)
@@ -1159,8 +1394,11 @@ def delete_project():
         else:
             flash("Project not found.", "danger")
 
-    return render_template('delete_proj.html', projects=projects, now=datetime.now())
+    return render_template('projects/delete_proj.html', projects=projects, now=datetime.now())
 
+
+
+# Route for uploading minutes of meeting (Admin only)
 @app.route('/upload_mom/<int:project_id>/<mom_type>', methods=['POST'])
 @login_required
 def upload_mom(project_id, mom_type):
@@ -1170,8 +1408,14 @@ def upload_mom(project_id, mom_type):
         return redirect(url_for('dashboard'))
     file = request.files.get('mom_file')
     if file and file.filename.endswith('.pdf'):
-        filename = save_pdf(file)
-        if mom_type == 'rab':
+        saved = save_files([file])
+        if saved:
+            filename = saved[0][0]
+        if mom_type == 'duely_signed_forms':
+            files = project.duely_signed_forms.split(',') if project.duely_signed_forms else []
+            files.append(filename)
+            project.duely_signed_forms = ','.join(files)
+        elif mom_type == 'rab':
             files = project.rab_minutes.split(',') if project.rab_minutes else []
             files.append(filename)
             project.rab_minutes = ','.join(files)
@@ -1180,10 +1424,13 @@ def upload_mom(project_id, mom_type):
             files.append(filename)
             project.gc_minutes = ','.join(files)
         db.session.commit()
+        log_action(current_user, f"Uploaded {mom_type} file '{filename}' to project '{project.title}'")
         flash("PDF attached successfully.", "success")
     else:
         flash("Please upload a valid PDF file.", "danger")
     return redirect(request.referrer or url_for('dashboard'))
+
+
 
 # Route for the download CSV
 @app.route('/download_csv', methods=['GET'])
@@ -1243,13 +1490,14 @@ def download_csv():
     response.headers['Content-Disposition'] = f'attachment; filename={filename}'
     return response
 
+
 # Route for the download filtered CSV
 @app.route('/download_filtered_csv', methods=['GET'])
 @login_required
 def download_filtered_csv():
     query = Project.query
     if current_user.role == 'manager':
-        query = query.filter_by(pi_name=current_user.pi_name)
+        query = query.filter(Project.scientist.ilike(f"%{current_user.coord_scientist}%"))
     column = request.args.get('column', '')
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
@@ -1357,6 +1605,8 @@ def download_filtered_csv():
     )
     response.headers['Content-Disposition'] = f'attachment; filename={filename}'
     return response
+
+
 
 # Route for the download PDF
 @app.route('/download_pdf', methods=['GET'])
@@ -1484,14 +1734,14 @@ def download_pdf():
     filename = f"DIA_CoE_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
 
-# ...existing code...
 
+# Route for the download filtered PDF
 @app.route('/download_filtered_pdf', methods=['GET'])
 @login_required
 def download_filtered_pdf():
     query = Project.query
     if current_user.role == 'manager':
-        query = query.filter_by(pi_name=current_user.pi_name)
+        query = query.filter(Project.scientist.ilike(f"%{current_user.coord_scientist}%"))
     column = request.args.get('column', '')
     value = request.args.get('value', '').strip()
     cost_min = request.args.get('cost_min', '').strip()
@@ -1646,14 +1896,17 @@ def download_filtered_pdf():
     filename = f"DIA_CoE_filtered_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
 
-#Route for notices
-@app.route('/notices')
-@login_required
-def notices():
-    forms = NoticeForm.query.order_by(NoticeForm.form_no).all()
-    return render_template('notices.html', forms=forms)
 
-# Route for the view logs page(Admin only)
+#Route for forms
+@app.route('/forms')
+@login_required
+def forms():
+    forms = NoticeForm.query.order_by(NoticeForm.form_no).all()
+    return render_template('forms/forms.html', forms=forms)
+
+
+
+# Route for the view logs page (Admin only)
 @app.route('/logs')
 @login_required 
 def view_logs():
@@ -1661,11 +1914,10 @@ def view_logs():
         flash("Unauthorized access.", "danger")
         return redirect(url_for('dashboard'))
     logs = Log.query.order_by(Log.timestamp.desc()).all()
-    return render_template('logs.html', logs=logs, now=datetime.now())
+    return render_template('main/logs.html', logs=logs, now=datetime.now())
 
 
 # Route for the view profile page
-#Logout user
 @app.route('/logout')
 @login_required
 def logout():
@@ -1677,13 +1929,13 @@ def logout():
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
-        admin_user = User(username='admin', password=generate_password_hash('admin123'), role='admin')
-        viewer_user = User(username='viewer', password=generate_password_hash('viewer123'), role='viewer')
+        admin_user = User(username='admin', password=generate_password_hash('Admin123$'), role='admin')
+        viewer_user = User(username='viewer', password=generate_password_hash('Viewer123$'), role='viewer')
         db.session.add_all([admin_user, viewer_user])
         db.session.commit()
 
 
-
+# Route for managing users (Admin only)
 @app.route('/manage_users')
 @login_required
 def manage_users():
@@ -1691,8 +1943,10 @@ def manage_users():
         flash("Unauthorized access.", "danger")
         return redirect(url_for('dashboard'))
     users = User.query.all()
-    return render_template('manage_users.html', users=users)
+    return render_template('users/manage_users.html', users=users)
 
+
+# Route for creating a new user (Admin only)
 @app.route('/create_user', methods=['GET', 'POST'])
 @login_required
 def create_user():
@@ -1703,7 +1957,7 @@ def create_user():
         username = request.form['username']
         password = request.form['password']
         role = request.form['role']
-        pi_name = request.form.get('pi_name') if role == 'manager' else None
+        coord_scientist = request.form.get('coord_scientist') if role == 'manager' else None
 
         # Check if username already exists
         if User.query.filter_by(username=username).first():
@@ -1717,13 +1971,17 @@ def create_user():
 
         # Hash the password and create the user
         hashed_password = generate_password_hash(password)
-        user = User(username=username, password=hashed_password, role=role, pi_name=pi_name)
+        user = User(username=username, password=hashed_password, role=role, coord_scientist=coord_scientist)
         db.session.add(user)
         db.session.commit()
+        log_action(current_user, f"Created user '{username}'")
         flash("User created successfully.", "success")
         return redirect(url_for('manage_users'))
-    return render_template('create_user.html')
+    return render_template('users/create_user.html')
 
+
+
+# Route for modifying an existing user (Admin only)
 @app.route('/modify_user', methods=['GET', 'POST'])
 @login_required
 def modify_user():
@@ -1731,13 +1989,13 @@ def modify_user():
         flash("Unauthorized access.", "danger")
         return redirect(url_for('dashboard'))
 
-    users = User.query.all()  # Fetch all users to populate the dropdown
+    users = User.query.all()  
 
     if request.method == 'POST':
         username = request.form.get('username')
         new_password = request.form.get('password')
         new_role = request.form.get('role')
-        pi_name = request.form.get('pi_name', '')
+        coord_scientist = request.form.get('coord_scientist', '')
 
         # Fetch the user from the database
         user = User.query.filter_by(username=username).first()
@@ -1756,19 +2014,21 @@ def modify_user():
         # Update the role and PI name
         user.role = new_role
         if new_role == 'manager':
-            user.pi_name = pi_name
+            user.coord_scientist = coord_scientist
         else:
-            user.pi_name = None
+            user.coord_scientist = None
 
         # Commit the changes to the database
         db.session.commit()
+        log_action(current_user, f"Modified user '{username}'")
         flash(f"User '{username}' has been updated successfully.", "success")
         return redirect(url_for('manage_users'))
 
     # Render the modify_user.html page on GET
-    return render_template('modify_user.html', users=users)
+    return render_template('users/modify_user.html', users=users)
 
 
+# Route for deleting a user (Admin only)
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 @login_required
 def delete_user(user_id):
@@ -1785,9 +2045,14 @@ def delete_user(user_id):
 
     db.session.delete(user)
     db.session.commit()
+    log_action(current_user, f"Deleted user '{user.username}'")
+
     flash(f"User '{user.username}' has been deleted successfully.", "success")
     return redirect(url_for('manage_users'))
 
+
+
+# Route for changing a user's role (Admin only)
 @app.route('/change_role/<int:user_id>', methods=['POST'])
 @login_required
 def change_role(user_id):
@@ -1804,10 +2069,13 @@ def change_role(user_id):
 
     user.role = new_role
     db.session.commit()
+    log_action(current_user, f"Changed role for user '{user.username}' to '{new_role}'")
     flash(f"Role for user '{user.username}' updated to '{new_role}'.", "success")
     return redirect(url_for('manage_users'))
 
 
+
+# Route for changing a user's password (Admin only)
 @app.route('/change_password/<int:user_id>', methods=['POST'])
 @login_required
 def change_password(user_id):
@@ -1825,10 +2093,13 @@ def change_password(user_id):
 
     user.password = generate_password_hash(new_password)
     db.session.commit()
+    log_action(current_user, f"Changed password for user '{user.username}'")
     flash(f"Password for user '{user.username}' updated successfully.", "success")
     return redirect(url_for('manage_users'))
 
 
+
+# Route for viewing all users (Admin only)
 @app.route('/view_all_users', methods=['GET'])
 @login_required
 def view_all_users():
@@ -1837,22 +2108,26 @@ def view_all_users():
         return redirect(url_for('dashboard'))
 
     users = User.query.all()
-    return render_template('view_all_users.html', users=users)
+    return render_template('users/view_all_users.html', users=users)
 
 
+
+# Route for viewing projects (restricted based on user role)
 @app.route('/projects', methods=['GET'])
 @login_required
 def view_projects():
     if current_user.role == 'manager':
         # Restrict projects to those with the manager's PI name
-        projects = Project.query.filter_by(pi_name=current_user.pi_name).all()
+        projects = Project.query.filter(Project.scientist.ilike(f"%{current_user.coord_scientist}%")).all()
     else:
         # Admins and viewers can see all projects
         projects = Project.query.all()
 
-    return render_template('projects.html', projects=projects)
+    return render_template('projects/projects.html', projects=projects)
 
 
+
+# Route for changing own password
 @app.route('/change_password', methods=['GET', 'POST'])
 @login_required
 def change_own_password():
@@ -1878,11 +2153,13 @@ def change_own_password():
         # Update password
         current_user.password = generate_password_hash(new_password)
         db.session.commit()
+        log_action(current_user, f"{current_user.username} changed password for {current_user.username} user")
         flash("Password updated successfully.", "success")
         return redirect(url_for('dashboard'))
 
-    return render_template('change_password.html')
+    return render_template('users/change_password.html')
 
-    
+
+# Run the Flask application
 if __name__ == '__main__':
     app.run(debug=True)

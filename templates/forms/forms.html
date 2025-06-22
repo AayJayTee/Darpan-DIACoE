@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+    .form-no-col { width: 130px; }
+    .title-col { width: 320px; }
+    .schedule-col { width: 320px; }
+    .files-col { width: 320px; }
+    .table thead th {
+      position: sticky;
+      top: 0;
+      background: #e3f2fd;
+      z-index: 2;
+    }
+</style>
+
+<style>
+    table.forms-table { border-collapse: collapse; width: 100%; }
+    table.forms-table th, table.forms-table td { border: 1px solid #0074b8; padding: 10px; }
+    table.forms-table th { background: #0074b8; color: #fff; }
+    .main-form-title { font-weight: bold; color: #0074b8; text-decoration: underline; }
+    .sub-form-title { color: #0074b8; }
+</style>
+
+<h2>Forms</h2>
+<table class="table table-bordered table-striped">
+    <thead class="table-primary">
+        <tr>
+            <th class="form-no-col">Form No</th>
+            <th class="title-col">Title</th>
+            <th class="schedule-col">Submission Schedule<br>(Mandatory Requirements)</th>
+            <th class="files-col">Uploaded Files</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for form in forms %}
+            <tr>
+                <td class="form-no-col">{{ form.form_no }}</td>
+                <td class="title-col">{{ form.title }}</td>
+                <td class="schedule-col">{{ form.submission_schedule|replace('\n', '<br>')|safe }}</td>
+                <td class="files-col">
+                    {% set file_links = [] %}
+                    {% if form.filenames and form.filenames.strip() %}
+                        {% for fname in form.filenames.split(',') %}
+                            {% set fname = fname.strip() %}
+                            {% if fname %}
+                                {% if ' ' in fname %}
+                                    {% set original_name = fname.split(' ', 1)[1] %}
+                                {% elif fname[:36].count('-') == 4 and fname[36] == '_' %}
+                                    {% set original_name = fname[37:] %}
+                                {% else %}
+                                    {% set original_name = fname %}
+                                {% endif %}
+                                {% if original_name.endswith('.pdf') or original_name.endswith('.doc') or original_name.endswith('.docx') %}
+                                    {% set _ = file_links.append('<a href="' ~ url_for('serve_form', filename=fname) ~ '" target="_blank">' ~ original_name ~ '</a>') %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% if file_links %}
+                        {{ file_links|join('<br>')|safe }}
+                    {% else %}
+                        No files uploaded
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% if current_user.role == 'admin' %}
+  <a href="{{ url_for('upload_form') }}" class="btn btn-primary mb-3">Add New Form</a>
+  <hr>
+  <h4>Manage Forms</h4>
+  <form id="manageForm" method="post" action="{{ url_for('manage_form_action') }}">
+    <div class="mb-3">
+        <select class="form-select" id="form_id" name="form_id" required>
+            <option value="" disabled selected>Select a form</option>
+            {% for form in forms %}
+                <option value="{{ form.id }}">{{ form.form_no }}</option>
+            {% endfor %}
+        </select>
+        <span id="formPrompt" class="text-danger mb-2" style="display:none;">Please select a form to proceed.</span>
+    </div>
+    <div class="mb-4 d-flex align-items-center flex-wrap gap-3">
+        <button type="submit" id="editBtn" name="action" value="edit" class="btn btn-warning mb-3"
+        onclick="return checkFormSelected('edit');">Edit Form</button>
+        <button type="submit" id="deleteBtn" name="action" value="delete" class="btn btn-danger mb-3"
+        onclick="return checkFormSelected('delete') && confirm('Delete this form?');">Delete Form</button>
+    </div>
+    <script>
+    function checkFormSelected(action) {
+        const formSelect = document.getElementById('form_id');
+        const prompt = document.getElementById('formPrompt');
+        if (!formSelect.value) {
+            prompt.style.display = 'block';
+            return false;
+        }
+        prompt.style.display = 'none';
+        return true;
+    }
+
+    // Hide the prompt when a selection is made
+    document.getElementById('form_id').addEventListener('change', function() {
+        const prompt = document.getElementById('formPrompt');
+        if (this.value) {
+            prompt.style.display = 'none';
+        }
+    });
+    </script>
+{% endif %}
+{% endblock %}
