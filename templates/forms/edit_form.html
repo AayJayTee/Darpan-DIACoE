@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Edit Form</h2>
+<form method="post" enctype="multipart/form-data" id="editForm">
+  <div class="mb-3">
+    <label for="form_no" class="form-label">Form No</label>
+    <input type="text" class="form-control" id="form_no" name="form_no" value="{{ form.form_no }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="title" class="form-label">Title</label>
+    <input type="text" class="form-control" id="title" name="title" value="{{ form.title }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="submission_schedule" class="form-label">Submission Schedule (Mandatory Requirements)</label>
+    <textarea id="submission_schedule" name="submission_schedule" rows="4" class="form-control" required>{{ form.submission_schedule }}</textarea>
+  </div>
+
+  {% if files %}
+    <div class="mb-3" id="uploaded-files-list">
+      <label class="form-label">Uploaded Files:</label>
+      {% for file in files %}
+        <div class="d-flex align-items-center mb-2 file-row" data-file-id="{{ file.id }}" style="gap: 0.5rem;">
+          <a href="{{ url_for('serve_form', filename=file.filename) }}" target="_blank">{{ file.original_name }}</a>
+          <button type="button" class="btn btn-danger btn-sm" onclick="markFileForDeletion({{ file.id }}, this)">Delete</button>
+      </div>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="delete_files" id="delete_files" value="">
+  {% endif %}
+
+  <div class="mb-3">
+    <label for="form_files" class="form-label">Add More Files (PDF, DOC, DOCX, max 10MB each)</label>
+    <input type="file" class="form-control" id="form_files" name="form_files" accept=".pdf,.doc,.docx" multiple>
+    <div class="text-muted mb-2">You can add new files here. To remove an uploaded file, use the "Delete" button above.</div>
+  </div>
+
+  <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 1rem;">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="{{ url_for('forms') }}" class="btn btn-secondary">Back to Forms</a>
+  </div>
+</form>
+
+<script>
+function markFileForDeletion(fileId, btn) {
+  if (confirm('Are you sure you want to delete this file?')) {
+    // Remove the file row from the DOM completely
+    const row = btn.closest('.file-row');
+    if (row) row.parentNode.removeChild(row);
+    // Add fileId to hidden input
+    var input = document.getElementById('delete_files');
+    var ids = input.value ? input.value.split(',') : [];
+    if (!ids.includes(fileId.toString())) {
+      ids.push(fileId);
+      input.value = ids.join(',');
+    }
+  }
+}
+</script>
+{% endblock %}

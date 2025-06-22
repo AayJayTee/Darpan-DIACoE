@@ -1,0 +1,576 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+  <style>
+    .wide-col1 {
+      min-width:100px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .wide-col2 {
+      min-width: 150px;
+      max-width: 400px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .wide-col3 {
+      min-width: 200px;
+      max-width: 400px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .wide-col4 {
+      min-width: 160px;
+      max-width: 400px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .wide-col5 {
+      min-width: 140px;
+      max-width: 400px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    /* Freeze the table header row */
+    .table thead th {
+      position: sticky;
+      top: 0;
+      background: #e3f2fd;
+      z-index: 2;
+    }
+    .table {
+    margin-bottom: 0;
+    }
+    .table-responsive {
+      max-height: 90vh;
+      overflow-y: auto;
+      margin-bottom: 40px;
+    }
+  </style>
+
+    {% if current_user.role in ['admin', 'viewer', 'manager'] %}
+      {% if approaching_pdc %}
+        <div class="alert alert-danger d-flex flex-column justify-content-center align-items-start" style="min-height:80px; background-color:#e00d0ddb; color:white; border-left: 8px solid #980909;">
+          <strong>Approaching PDC Deadlines:</strong>
+          <ul class="mb-0">
+            {% for p in approaching_pdc %}
+              <li>{{ p.title }} (PDC: {{ p.revised_pdc }})</li>
+            {% endfor %}
+          </ul> 
+        </div>
+      {% endif %}
+      {% if approaching_rab %}
+        <div class="alert alert-danger d-flex flex-column justify-content-center align-items-start" style="min-height:80px; background-color:#e00d0ddb; color:white; border-left: 8px solid #980909;">
+          <strong>Approaching RAB Meeting Dates:</strong>
+          <ul class="mb-0">
+            {% for p in approaching_rab %}
+              <li>{{ p.title }} (RAB Meeting: {{ p.rab_meeting_date }})</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+      {% if approaching_gc %}
+        <div class="alert alert-danger d-flex flex-column justify-content-center align-items-start" style="min-height:80px; background-color:#e00d0ddb; color:white; border-left: 8px solid #980909;">
+          <strong>Approaching GC Meeting Dates:</strong>
+          <ul class="mb-0">
+            {% for p in approaching_gc %}
+              <li>{{ p.title }} (GC Meeting: {{ p.gc_meeting_date }})</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    {% endif %}
+
+  <h2 class="mb-4" style="color: #000000;">DIA-CoE Projects DARPAN</h2>
+
+  {% if current_user.role == 'admin' %}
+    <div class="mb-4 d-flex align-items-center flex-wrap gap-3">
+      <a href="{{ url_for('add_project') }}" class="btn btn-success">Add Project</a>
+      <a href="{{ url_for('modify_search') }}" class="btn btn-warning">Modify Project</a>
+      <a href="{{ url_for('delete_project') }}" class="btn btn-danger">Delete Project</a>
+      <a href="{{ url_for('download_csv') }}" class="btn btn-secondary">Download CSV</a>
+      <a href="{{ url_for('download_pdf') }}" class="btn btn-secondary">Download PDF</a>
+    </div>
+
+    <!-- Filter/Search Form -->
+    <form method="get" action="{{ url_for('dashboard') }}" class="row g-3 mb-4 align-items-end">
+      <div class="col-md-4">
+        <select name="column" class="form-select" id="columnSelect" onchange="updateInputType()">
+          <option value="serial_no" {% if request.args.get('column') == 'serial_no' %}selected{% endif %}>Serial No</option>
+          <option value="title" {% if request.args.get('column') == 'title' %}selected{% endif %}>Nomenclature</option>
+          <option value="vertical" {% if request.args.get('column') == 'vertical' %}selected{% endif %}>Research Vertical</option>
+          <option value="academia" {% if request.args.get('column') == 'academia' %}selected{% endif %}>Academia/Institute</option>
+          <option value="pi_name" {% if request.args.get('column') == 'pi_name' %}selected{% endif %}>PI Name</option>
+          <option value="coord_lab" {% if request.args.get('column') == 'coord_lab' %}selected{% endif %}>Coordinating Lab</option>
+          <option value="scientist" {% if request.args.get('column') == 'scientist' %}selected{% endif %}>Coordinating Scientist</option>
+          <option value="cost_lakhs" {% if request.args.get('column') == 'cost_lakhs' %}selected{% endif %}>Cost (Lakhs)</option>
+          <option value="sanctioned_date" {% if request.args.get('column') == 'sanctioned_date' %}selected{% endif %}>Sanctioned Date</option>
+          <option value="original_pdc" {% if request.args.get('column') == 'original_pdc' %}selected{% endif %}>Original PDC</option>
+          <option value="revised_pdc" {% if request.args.get('column') == 'revised_pdc' %}selected{% endif %}>Revised PDC</option>
+          <option value="administrative_status" {% if request.args.get('column') == 'administrative_status' %}selected{% endif %}>Administrative Status</option>
+          <option value="sanction_year" {% if request.args.get('column') == 'sanction_year' %}selected{% endif %}>Sanction Year</option>
+        </select>
+      </div>
+      <!-- Cost range inputs (hidden unless cost_lakhs is selected) -->
+      <div class="col-md-4" id="costRangeInputs" style="display:none;">
+        <div class="input-group">
+          <input type="number" step="any" name="cost_min" class="form-control" placeholder="Min Cost" value="{{ request.args.get('cost_min', '') }}">
+          <span class="input-group-text">to</span>
+          <input type="number" step="any" name="cost_max" class="form-control" placeholder="Max Cost" value="{{ request.args.get('cost_max', '') }}">
+        </div>
+      </div>
+      <!-- Sanction year range inputs (hidden unless sanction_year is selected) -->
+      <div class="col-md-4" id="sanctionYearRangeInputs" style="display:none;">
+        <div class="input-group">
+          <input type="number" name="sanction_year_start" class="form-control" placeholder="Start Year" min="1900" max="2100" value="{{ request.args.get('sanction_year_start', '') }}">
+          <span class="input-group-text">to</span>
+          <input type="number" name="sanction_year_end" class="form-control" placeholder="End Year" min="1900" max="2100" value="{{ request.args.get('sanction_year_end', '') }}">
+        </div>
+      </div>
+      <!-- Default value input -->
+      <div class="col-md-4" id="valueInputWrapper">
+        <input type="text" name="value" id="filterValue" class="form-control" placeholder="Enter value" value="{{ request.args.get('value', '') }}">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-md-2">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary w-100">Reset</a>
+      </div>
+    </form>
+    <script>
+      function updateInputType() {
+        const column = document.getElementById('columnSelect').value;
+        const valueInput = document.getElementById('filterValue');
+        const valueInputWrapper = document.getElementById('valueInputWrapper');
+        const costRangeInputs = document.getElementById('costRangeInputs');
+        const sanctionYearRangeInputs = document.getElementById('sanctionYearRangeInputs');
+
+        // Hide all by default
+        valueInputWrapper.style.display = 'none';
+        costRangeInputs.style.display = 'none';
+        sanctionYearRangeInputs.style.display = 'none';
+
+        if (column === 'cost_lakhs') {
+          valueInputWrapper.style.display = 'none';
+          costRangeInputs.style.display = '';
+        } else if (column === 'sanction_year') {
+          valueInputWrapper.style.display = 'none';
+          costRangeInputs.style.display = 'none';
+          sanctionYearRangeInputs.style.display = '';
+        } else if (column === 'sanctioned_date' || column === 'original_pdc' || column === 'revised_pdc') {
+          valueInput.type = 'date';
+          valueInput.placeholder = '';
+          valueInputWrapper.style.display = '';
+          costRangeInputs.style.display = 'none';
+        } else {
+          valueInput.type = 'text';
+          valueInput.placeholder = 'Enter value';
+          valueInputWrapper.style.display = '';
+          costRangeInputs.style.display = 'none';
+        }
+      }
+      // Run on page load
+      updateInputType();
+      // Call on page load to set correct state
+      document.addEventListener('DOMContentLoaded', updateInputType);
+    </script>
+  {% endif %}
+  
+  {% if current_user.role == 'viewer' %}
+    <div class="mb-4 d-flex flex-wrap gap-3">
+      <a href="{{ url_for('download_csv') }}" class="btn btn-secondary">Download CSV</a>
+      <a href="{{ url_for('download_pdf') }}" class="btn btn-secondary">Download PDF</a>
+    </div>
+
+    <!-- Filter/Search Form for viewers (optional, can remove if not needed) -->
+    <form method="get" action="{{ url_for('dashboard') }}" class="row g-3 mb-4 align-items-end">
+      <div class="col-md-4">
+        <select name="column" class="form-select" id="columnSelectViewer" onchange="updateInputTypeViewer()">
+          <option value="serial_no" {% if request.args.get('column') == 'serial_no' %}selected{% endif %}>Serial No</option>
+          <option value="title" {% if request.args.get('column') == 'title' %}selected{% endif %}>Nomenclature</option>
+          <option value="vertical" {% if request.args.get('column') == 'vertical' %}selected{% endif %}>Research Vertical</option>
+          <option value="academia" {% if request.args.get('column') == 'academia' %}selected{% endif %}>Academia/Institute</option>
+          <option value="pi_name" {% if request.args.get('column') == 'pi_name' %}selected{% endif %}>PI Name</option>
+          <option value="coord_lab" {% if request.args.get('column') == 'coord_lab' %}selected{% endif %}>Coordinating Lab</option>
+          <option value="scientist" {% if request.args.get('column') == 'scientist' %}selected{% endif %}>Coordinating Scientist</option>
+          <option value="cost_lakhs" {% if request.args.get('column') == 'cost_lakhs' %}selected{% endif %}>Cost (Lakhs)</option>
+          <option value="sanctioned_date" {% if request.args.get('column') == 'sanctioned_date' %}selected{% endif %}>Sanctioned Date</option>
+          <option value="original_pdc" {% if request.args.get('column') == 'original_pdc' %}selected{% endif %}>Original PDC</option>
+          <option value="revised_pdc" {% if request.args.get('column') == 'revised_pdc' %}selected{% endif %}>Revised PDC</option>
+          <option value="administrative_status" {% if request.args.get('column') == 'administrative_status' %}selected{% endif %}>Administrative Status</option>
+        </select>
+      </div>
+      <!-- Cost range inputs for viewer -->
+      <div class="col-md-4" id="costRangeInputsViewer" style="display:none;">
+        <div class="input-group">
+          <input type="number" step="any" name="cost_min" class="form-control" placeholder="Min Cost" value="{{ request.args.get('cost_min', '') }}">
+          <span class="input-group-text">to</span>
+          <input type="number" step="any" name="cost_max" class="form-control" placeholder="Max Cost" value="{{ request.args.get('cost_max', '') }}">
+        </div>
+      </div>
+      <div class="col-md-4" id="valueInputWrapperViewer">
+        <input type="text" name="value" id="filterValueViewer" class="form-control" placeholder="Enter value" value="{{ request.args.get('value', '') }}">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-md-2">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary w-100">Reset</a>
+      </div>
+    </form>
+    <script>
+      function updateInputTypeViewer() {
+        const column = document.getElementById('columnSelectViewer').value;
+        const valueInput = document.getElementById('filterValueViewer');
+        const valueInputWrapper = document.getElementById('valueInputWrapperViewer');
+        const costRangeInputs = document.getElementById('costRangeInputsViewer');
+        if (column === 'cost_lakhs') {
+          valueInputWrapper.style.display = 'none';
+          costRangeInputs.style.display = '';
+        } else if (column === 'sanctioned_date' || column === 'original_pdc' || column === 'revised_pdc') {
+          valueInput.type = 'date';
+          valueInput.placeholder = '';
+          valueInputWrapper.style.display = '';
+          costRangeInputs.style.display = 'none';
+        } else {
+          valueInput.type = 'text';
+          valueInput.placeholder = 'Enter value';
+          valueInputWrapper.style.display = '';
+          costRangeInputs.style.display = 'none';
+        }
+      }
+      updateInputTypeViewer();
+    </script>
+  {% endif %}
+
+  <h4>All Projects</h4>
+  {% if projects %}
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped">
+        <thead class="table-primary">
+          <tr>
+            <th>S. No.</th>
+            <th>Nomenclature</th>
+            <th>Academia/ Institute</th>
+            <th>PI Name</th>
+            <th>Coordinating Lab</th>
+            <th>Coordinating Lab Scientist</th>
+            <th>Research Vertical</th>
+            <th>Cost (in Lakhs)</th>
+            <th class="wide-col1">Sanctioned Date</th>
+            <th class="wide-col1">Original PDC</th>
+            <th class="wide-col1">Revised PDC</th>
+            <th class="wide-col1">Stake Holding Labs</th>
+            <th class="wide-col1">Scope/Objective of the Project</th>
+            <th>Expected Deliverables/ Technology</th>
+            <th class="wide-col2">Outcome Dovetailing with Ongoing Work</th>
+            <th class="wide-col3">Duely Signed Forms</th>
+            <th class="wide-col3">RAB Meeting Scheduled Date</th>
+            <th class="wide-col3">RAB Meeting Held Date</th>
+            <th class="wide-col3">RAB Minutes of Meeting</th>
+            <th class="wide-col3">GC Meeting Scheduled Date</th>
+            <th class="wide-col3">GC Meeting Held Date</th>
+            <th class="wide-col3">GC Minutes of Meeting</th>
+            <th class="wide-col5">Technical Status</th>
+            <th>Administrative Status</th>
+            <th class="wide-col1">Final Closure Status</th>
+            <th class="wide-col4">Final Report</th>
+            {% if current_user.role == 'admin' %}
+              <th>Actions</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody id="projectTableBody">
+          {% include 'partials/project_table_body.html' %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p>No projects found.</p>
+  {% endif %}
+<!-- Place this below your table in dashboard.html -->
+<div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; justify-content: flex-start;">
+  <!-- PDF Download Form -->
+  <form id="filteredPdfForm" method="get" action="{{ url_for('download_filtered_pdf') }}" style="margin: 0;">
+    <input type="hidden" name="column" id="pdf_column" value="{{ request.args.get('column', '') }}">
+    <input type="hidden" name="value" id="pdf_value" value="{{ request.args.get('value', '') }}">
+    <input type="hidden" name="cost_min" id="pdf_cost_min" value="{{ request.args.get('cost_min', '') }}">
+    <input type="hidden" name="cost_max" id="pdf_cost_max" value="{{ request.args.get('cost_max', '') }}">
+    <input type="hidden" name="sanction_year_start" id="pdf_sanction_year_start" value="{{ request.args.get('sanction_year_start', '') }}">
+    <input type="hidden" name="sanction_year_end" id="pdf_sanction_year_end" value="{{ request.args.get('sanction_year_end', '') }}">
+    <button type="submit" class="btn btn-secondary btn-md w-10">Download Filtered PDF</button>
+  </form>
+  <!-- CSV Download Button -->
+  <button id="download-filtered-csv-btn" class="btn btn-secondary btn-md w-10" type="button">Download CSV for Filtered Rows</button>
+  <!-- Analytics Button -->
+  <button id="showAnalyticsBtn" class="btn btn-secondary btn-md w-10" type="button">Show Data Analytics for Filtered Data</button>
+</div>
+
+<br>
+<div id="filteredAnalytics" style="display:none; margin-top: 30px;"></div>
+
+<script>
+    // Sync hidden PDF form inputs with filter controls
+    function syncPdfFormInputs() {
+      document.getElementById('pdf_column').value = document.getElementById('columnSelect') ? document.getElementById('columnSelect').value : '';
+      document.getElementById('pdf_value').value = document.getElementById('filterValue') ? document.getElementById('filterValue').value : '';
+      document.getElementById('pdf_cost_min').value = document.querySelector('[name="cost_min"]') ? document.querySelector('[name="cost_min"]').value : '';
+      document.getElementById('pdf_cost_max').value = document.querySelector('[name="cost_max"]') ? document.querySelector('[name="cost_max"]').value : '';
+      document.getElementById('pdf_sanction_year_start').value = document.querySelector('[name="sanction_year_start"]') ? document.querySelector('[name="sanction_year_start"]').value : '';
+      document.getElementById('pdf_sanction_year_end').value = document.querySelector('[name="sanction_year_end"]') ? document.querySelector('[name="sanction_year_end"]').value : '';
+    }
+
+    // Sync on filter form submit and on change
+    document.addEventListener('DOMContentLoaded', function() {
+      // If you have a filter form, sync on its submit/change
+      var filterForm = document.querySelector('form[action="{{ url_for("dashboard") }}"]');
+      if (filterForm) {
+        filterForm.addEventListener('submit', syncPdfFormInputs);
+        filterForm.addEventListener('change', syncPdfFormInputs);
+      }
+      syncPdfFormInputs();
+
+      // CSV Download
+      document.getElementById('download-filtered-csv-btn').addEventListener('click', function() {
+        const column = document.getElementById('columnSelect') ? document.getElementById('columnSelect').value : '';
+        const value = document.getElementById('filterValue') ? document.getElementById('filterValue').value : '';
+        const costMin = document.querySelector('[name="cost_min"]') ? document.querySelector('[name="cost_min"]').value : '';
+        const costMax = document.querySelector('[name="cost_max"]') ? document.querySelector('[name="cost_max"]').value : '';
+        const sanctionYearStart = document.querySelector('[name="sanction_year_start"]') ? document.querySelector('[name="sanction_year_start"]').value : '';
+        const sanctionYearEnd = document.querySelector('[name="sanction_year_end"]') ? document.querySelector('[name="sanction_year_end"]').value : '';
+
+        let params = [];
+        if (column) params.push(`column=${encodeURIComponent(column)}`);
+        if (value) params.push(`value=${encodeURIComponent(value)}`);
+        if (costMin) params.push(`cost_min=${encodeURIComponent(costMin)}`);
+        if (costMax) params.push(`cost_max=${encodeURIComponent(costMax)}`);
+        if (sanctionYearStart) params.push(`sanction_year_start=${encodeURIComponent(sanctionYearStart)}`);
+        if (sanctionYearEnd) params.push(`sanction_year_end=${encodeURIComponent(sanctionYearEnd)}`);
+
+        const queryString = params.length ? `?${params.join('&')}` : '';
+        window.location.href = `/download_filtered_csv${queryString}`;
+      });
+
+      // Analytics
+      document.getElementById('showAnalyticsBtn').addEventListener('click', function() {
+        const column = document.getElementById('columnSelect') ? document.getElementById('columnSelect').value : '';
+        const value = document.getElementById('filterValue') ? document.getElementById('filterValue').value : '';
+        const cost_min = document.querySelector('[name="cost_min"]') ? document.querySelector('[name="cost_min"]').value : '';
+        const cost_max = document.querySelector('[name="cost_max"]') ? document.querySelector('[name="cost_max"]').value : '';
+        const sanction_year_start = document.querySelector('[name="sanction_year_start"]') ? document.querySelector('[name="sanction_year_start"]').value : '';
+        const sanction_year_end = document.querySelector('[name="sanction_year_end"]') ? document.querySelector('[name="sanction_year_end"]').value : '';
+        const params = [];
+        if (column) params.push(`column=${encodeURIComponent(column)}`);
+        if (value) params.push(`value=${encodeURIComponent(value)}`);
+        if (cost_min) params.push(`cost_min=${encodeURIComponent(cost_min)}`);
+        if (cost_max) params.push(`cost_max=${encodeURIComponent(cost_max)}`);
+        if (sanction_year_start) params.push(`sanction_year_start=${encodeURIComponent(sanction_year_start)}`);
+        if (sanction_year_end) params.push(`sanction_year_end=${encodeURIComponent(sanction_year_end)}`);
+
+        const queryString = params.length ? `?${params.join('&')}` : '';
+        fetch(`/filtered_analytics${queryString}`)
+            .then(response => response.text())
+            .then(html => {
+                const container = document.getElementById('filteredAnalytics');
+                container.innerHTML = html;
+                container.style.display = 'block';
+
+                // --- Force execution of scripts in the loaded HTML ---
+                const scripts = container.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    if (oldScript.src) {
+                        newScript.src = oldScript.src;
+                    } else {
+                        newScript.textContent = oldScript.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                    document.body.removeChild(newScript);
+                });
+            });
+      });
+    });
+</script>
+
+<br>
+<script>
+    const searchInput = document.getElementById('searchInput');
+    const projectTableBody = document.getElementById('projectTableBody');
+
+    function bindInlineForms() {
+      // Technical Status
+      document.querySelectorAll('.technical_status-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const projectId = this.dataset.projectId;
+          const technical_status = this.technical_status.value;
+          fetch(`/post_technical_status/${projectId}`, {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: new URLSearchParams({technical_status})
+          })
+          .then(res => res.json())
+          .then(data => {
+            if(data.success) {
+              alert('Technical Status updated!');
+            } else {
+              alert(data.message);
+            }
+          });
+        });
+      });
+
+      // RAB Meeting Scheduled Date
+      document.querySelectorAll('.rab_meeting_scheduled_date-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const projectId = this.dataset.projectId;
+          const rab_meeting_date = this.rab_meeting_date.value;
+          fetch(`/post_rab_meeting_scheduled_date/${projectId}`, {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: new URLSearchParams({rab_meeting_date})
+          })
+          .then(res => res.json())
+          .then(data => {
+            if(data.success) {
+              alert('RAB Meeting Scheduled Date updated!');
+            } else {
+              alert(data.message);
+            }
+          });
+        });
+      });
+
+      // RAB Meeting Held Date
+      document.querySelectorAll('.rab_meeting_held_date-form').forEach(form => {
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const projectId = this.dataset.projectId;
+              const rab_meeting_held_date = this.querySelector('[name="rab_meeting_held_date"]').value; // Correct field access
+              fetch(`/post_rab_meeting_held_date/${projectId}`, {
+                  method: 'POST',
+                  headers: {'X-Requested-With': 'XMLHttpRequest'},
+                  body: new URLSearchParams({rab_meeting_held_date})
+              })
+              .then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      alert('RAB Meeting Held Date updated!');
+                  } else {
+                      alert(data.message);
+                  }
+              });
+          });
+      });
+
+      // RAB Minutes of Meeting
+      document.querySelectorAll('.rab_minutes_of_meeting-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const projectId = this.dataset.projectId;
+          const rab_minutes = this.rab_minutes.value;
+          fetch(`/post_rab_minutes_of_meeting/${projectId}`, {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: new URLSearchParams({rab_minutes})
+          })
+          .then(res => res.json())
+          .then(data => {
+            if(data.success) {
+              alert('RAB Minutes of Meeting updated!');
+            } else {
+              alert(data.message);
+            }
+          });
+        });
+      });
+
+      // GC Meeting Scheduled Date
+      document.querySelectorAll('.gc_meeting_scheduled_date-form').forEach(form => {
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const projectId = this.dataset.projectId;
+              const gc_meeting_date = this.querySelector('[name="gc_meeting_date"]').value; // Correct field access
+              fetch(`/post_gc_meeting_scheduled_date/${projectId}`, {
+                  method: 'POST',
+                  headers: {'X-Requested-With': 'XMLHttpRequest'},
+                  body: new URLSearchParams({gc_meeting_date})
+              })
+              .then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      alert('GC Meeting Scheduled Date updated!');
+                  } else {
+                      alert(data.message);
+                  }
+              });
+          });
+      });
+
+      // GC Meeting Held Date
+      document.querySelectorAll('.gc_meeting_held_date-form').forEach(form => {
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              const projectId = this.dataset.projectId;
+              const gc_meeting_held_date = this.querySelector('[name="gc_meeting_held_date"]').value; // Correct field access
+              fetch(`/post_gc_meeting_held_date/${projectId}`, {
+                  method: 'POST',
+                  headers: {'X-Requested-With': 'XMLHttpRequest'},
+                  body: new URLSearchParams({gc_meeting_held_date})
+              })
+              .then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      alert('GC Meeting Held Date updated!');
+                  } else {
+                      alert(data.message);
+                  }
+              });
+          });
+      });
+
+      // GC Minutes of Meeting
+      document.querySelectorAll('.gc_minutes_of_meeting-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const projectId = this.dataset.projectId;
+          const gc_minutes = this.gc_minutes.value;
+          fetch(`/post_gc_minutes_of_meeting/${projectId}`, {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: new URLSearchParams({gc_minutes})
+          })
+          .then(res => res.json())
+          .then(data => {
+            if(data.success) {
+              alert('GC Minutes of Meeting updated!');
+            } else {
+              alert(data.message);
+            }
+          });
+        });
+      });
+    }
+
+    // Initial binding
+    bindInlineForms();
+
+    // Re-bind after AJAX search
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const query = this.value;
+        fetch(`/ajax_search_projects?query=${encodeURIComponent(query)}`)
+          .then(response => response.text())
+          .then(html => {
+            projectTableBody.innerHTML = html;
+            bindInlineForms();
+          })
+          .catch(err => console.error('Search error:', err));
+      });
+    }
+  </script>
+
+{% endblock %}

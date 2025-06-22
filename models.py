@@ -13,7 +13,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(10), nullable=False) 
-    pi_name = db.Column(db.String(100), nullable=True)  
+    coord_scientist = db.Column(db.String(100), nullable=True)  
     logs = db.relationship('Log', back_populates='user', lazy=True)
 
 class Log(db.Model):
@@ -42,6 +42,7 @@ class Project(db.Model):
     expected_deliverables = db.Column(db.String(300))
     Outcome_Dovetailing_with_Ongoing_Work=db.Column(db.Text,nullable = True)
     rab_meeting_date = db.Column(db.Date, nullable = True)   
+    duely_signed_forms = db.Column(db.Text, nullable = True)
     rab_meeting_held_date = db.Column(db.Date, nullable = True)
     rab_minutes = db.Column(db.Text)
     gc_meeting_date = db.Column(db.Date, nullable = True)

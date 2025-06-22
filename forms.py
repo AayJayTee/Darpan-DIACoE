@@ -32,10 +32,11 @@ class ProjectForm(FlaskForm):
     scope_objective = TextAreaField('Scope/Objective of Project')
     expected_deliverables = StringField('Expected Deliverables/ Technologies')
     Outcome_Dovetailing_with_Ongoing_Work=TextAreaField('Outcome Dovetailing with Ongoing Work')
-    rab_meeting_date = DateField("RAB Meeting Date", format='%Y-%m-%d', validators=[Optional()])
+    duely_signed_forms = MultipleFileField('Signed Forms', validators=[FileAllowed(['pdf'], 'PDF only!')])
+    rab_meeting_date = DateField("RAB Meeting Scheduled Date", format='%Y-%m-%d', validators=[Optional()])
     rab_meeting_held_date = DateField("RAB Meeting Held Date", format='%Y-%m-%d', validators=[Optional()])
     rab_minutes = MultipleFileField('RAB Minutes of Meeting', validators=[FileAllowed(['pdf'], 'PDF only!')])
-    gc_meeting_date = DateField("GC Meeting Date", format='%Y-%m-%d', validators=[Optional()])
+    gc_meeting_date = DateField("GC Meeting Scheduled Date", format='%Y-%m-%d', validators=[Optional()])
     gc_meeting_held_date = DateField("GC Meeting Held Date", format='%Y-%m-%d', validators=[Optional()])
     gc_minutes = MultipleFileField('GC Minutes of Meeting', validators=[FileAllowed(['pdf'], 'PDF only!')])
     technical_status = TextAreaField('Technical Status')
@@ -57,12 +58,12 @@ class UploadForm(FlaskForm):
     form_no = StringField('Form No', validators=[DataRequired()])
     title = StringField('Title', validators=[DataRequired()])
     submission_schedule = TextAreaField('Submission Schedule (Mandatory Requirements)', validators=[DataRequired()])
-    file = FileField('PDF File', validators=[FileRequired(), FileAllowed(['pdf'], 'PDFs only!')])
+    files = MultipleFileField('Upload Files', validators=[FileAllowed(['pdf', 'doc', 'docx', 'PDF', 'DOC', 'DOCX'], 'PDFs, DOC, or DOCX files only!')])  # Allow multiple file uploads
     submit = SubmitField('Upload')
 
 class ModifyUserForm(FlaskForm):
     username = SelectField('Select User', validators=[DataRequired()], coerce=str)
     password = PasswordField('New Password (leave blank to keep unchanged)', validators=[Optional(), Length(min=8)])
     role = SelectField('Role', choices=[('admin', 'Admin'), ('viewer', 'Viewer'), ('manager', 'Manager')], validators=[DataRequired()])
-    pi_name = StringField('PI Name (for Manager)', validators=[Optional()])
+    coord_scientist = StringField('Coordinating Scientist Name (for Manager)', validators=[Optional()])
     submit = SubmitField('Update User')
