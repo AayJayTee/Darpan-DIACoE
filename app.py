@@ -1953,6 +1953,7 @@ def create_user():
     if current_user.role != 'admin':
         flash("Unauthorized access.", "danger")
         return redirect(url_for('dashboard'))
+    coordinating_scientists = sorted({p.scientist for p in Project.query.all() if p.scientist})
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -1977,7 +1978,7 @@ def create_user():
         log_action(current_user, f"Created user '{username}'")
         flash("User created successfully.", "success")
         return redirect(url_for('manage_users'))
-    return render_template('users/create_user.html')
+    return render_template('users/create_user.html' , coordinating_scientists=coordinating_scientists)
 
 
 
