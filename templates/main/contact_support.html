@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Contact Us - DRDO DARPAN Portal{% endblock %}
+
+{% block content %}
+<div class="container d-flex flex-column justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="row justify-content-center w-100">
+        <div class="col-lg-10">
+            <div class="card shadow-sm p-4 mb-4 bg-white rounded">
+                <div class="text-center mb-4">
+                    <h1 class="mt-2 mb-1" style="color: #052155; font-weight: 700;">Contact Us</h1>
+                </div>
+                <hr>
+                <div class="mb-4">
+                    <h4 class="mb-2" style="color: #0f2d64;">About the Web Application</h4>
+                    <p style="text-align: justify;">
+                        <strong>DRDO DARPAN Portal</strong> is a unified digital platform designed to streamline and manage research projects under the DRDO Industry Academia Centres of Excellence (DIA-CoEs). The portal enables seamless collaboration between DRDO laboratories, academic institutions, and industry partners, fostering innovation and accelerating the development of advanced defence technologies.
+                    </p>
+                    <p style="text-align: justify;">
+                        <strong>Key Features:</strong>
+                        <ul>
+                            <li>Centralized project database with advanced search and analytics</li>
+                            <li>Role-based access for admins, managers, and viewers</li>
+                            <li>Secure file uploads and document management</li>
+                            <li>Automated reminders for project deadlines and meetings</li>
+                            <li>Comprehensive data visualization and reporting tools</li>
+                        </ul>
+                    </p>
+                    <p style="text-align: justify;">
+                        <strong>Technology Stack:</strong>
+                        <ul>
+                            <li><b>Backend:</b> Python, Flask, Flask-SQLAlchemy, Flask-Login, Flask-Migrate</li>
+                            <li><b>Frontend:</b> HTML5, CSS3, Bootstrap 5, Jinja2 templating</li>
+                            <li><b>Database:</b> SQLite </li>
+                            <li><b>Other Libraries:</b> WTForms, ReportLab (for PDF export), Chart.js (for analytics)</li>
+                            <li><b>Authentication:</b> Role-based access control using Flask-Login</li>
+                        </ul>
+                    </p>
+                </div>
+                <div class="mb-4">
+                    <h4 class="mb-2" style="color: #0f2d64;">User Manual</h4>
+                    <p style="text-align: justify;">
+                        Please refer to the following documents for step-by-step instructions on using the portal:
+                    </p>
+                    <ul>
+                        <li>
+                            <a href="{{ url_for('static', filename='User Manual.pdf') }}" target="_blank"> User Manual (PDF)
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('static', filename='User Manual.pptx') }}" target="_blank"> User Manual (PPT)
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h4 class="mb-2" style="color: #0f2d64;">About the Team</h4>
+                    <p style="text-align: justify;">
+                        The DRDO DARPAN Portal is developed and maintained by a dedicated team of students and researchers committed to supporting innovation and collaboration.
+                    </p>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <strong>Kanchan Rai</strong><br>
+                                Email: kanchanrai2307@gmail.com<br>
+                                LinkedIn: <a href="https://www.linkedin.com/in/kanchanraiii/" target="_blank">https://www.linkedin.com/in/kanchanraiii/</a><br>
+                                Phone: +91-7651881382
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <strong>Aaron Johnson Thomas</strong><br>
+                                Email: aaronjohnsonthomas@gmail.com<br>
+                                LinkedIn: <a href="https://www.linkedin.com/in/aaron-jthomas/" target="_blank">www.linkedin.com/in/aaron-jthomas/</a>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <strong>Saumyaa Garg</strong><br>
+                                Email: gargsaumyaa0310@gmail.com<br>
+                                LinkedIn: <a href="https://www.linkedin.com/in/saumyaagarg/" target="_blank">https://www.linkedin.com/in/saumyaagarg/</a>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <strong>Yati</strong><br>
+                                Email: yatig2004@gmail.com<br>
+                                LinkedIn: <a href="https://www.linkedin.com/in/yati21/" target="_blank">https://www.linkedin.com/in/yati21/</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
