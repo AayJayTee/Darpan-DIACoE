@@ -96,6 +96,11 @@
               <a class="nav-link" href="{{ url_for('view_logs') }}">View Logs</a>
             </li>
           {% endif %}
+          {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.endpoint == 'contact_support' %}active{% endif %}" href="{{ url_for('contact_support') }}">Contact Support</a>
+            </li>
+          {% endif %}
         </ul>
         <!-- RIGHT: User info and logout -->
         <ul class="navbar-nav ms-auto">

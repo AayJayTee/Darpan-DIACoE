@@ -1904,8 +1904,6 @@ def forms():
     forms = NoticeForm.query.order_by(NoticeForm.form_no).all()
     return render_template('forms/forms.html', forms=forms)
 
-
-
 # Route for the view logs page (Admin only)
 @app.route('/logs')
 @login_required 
@@ -1916,6 +1914,10 @@ def view_logs():
     logs = Log.query.order_by(Log.timestamp.desc()).all()
     return render_template('main/logs.html', logs=logs, now=datetime.now())
 
+@app.route('/contact_support')
+@login_required
+def contact_support():
+    return render_template('main/contact_support.html')
 
 # Route for the view profile page
 @app.route('/logout')
@@ -2125,6 +2127,7 @@ def view_projects():
         projects = Project.query.all()
 
     return render_template('projects/projects.html', projects=projects)
+
 
 
 

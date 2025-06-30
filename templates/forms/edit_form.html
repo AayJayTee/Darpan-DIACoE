@@ -22,7 +22,7 @@
         <div class="d-flex align-items-center mb-2 file-row" data-file-id="{{ file.id }}" style="gap: 0.5rem;">
           <a href="{{ url_for('serve_form', filename=file.filename) }}" target="_blank">{{ file.original_name }}</a>
           <button type="button" class="btn btn-danger btn-sm" onclick="markFileForDeletion({{ file.id }}, this)">Delete</button>
-      </div>
+        </div>
       {% endfor %}
     </div>
     <input type="hidden" name="delete_files" id="delete_files" value="">

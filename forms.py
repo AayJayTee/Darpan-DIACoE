@@ -32,7 +32,7 @@ class ProjectForm(FlaskForm):
     scope_objective = TextAreaField('Scope/Objective of Project')
     expected_deliverables = StringField('Expected Deliverables/ Technologies')
     Outcome_Dovetailing_with_Ongoing_Work=TextAreaField('Outcome Dovetailing with Ongoing Work')
-    duely_signed_forms = MultipleFileField('Signed Forms', validators=[FileAllowed(['pdf'], 'PDF only!')])
+    duely_signed_forms = MultipleFileField('Duly Signed Forms', validators=[FileAllowed(['pdf'], 'PDF only!')])
     rab_meeting_date = DateField("RAB Meeting Scheduled Date", format='%Y-%m-%d', validators=[Optional()])
     rab_meeting_held_date = DateField("RAB Meeting Held Date", format='%Y-%m-%d', validators=[Optional()])
     rab_minutes = MultipleFileField('RAB Minutes of Meeting', validators=[FileAllowed(['pdf'], 'PDF only!')])
